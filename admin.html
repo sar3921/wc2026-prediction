@@ -638,6 +638,7 @@ function renderParticipantList() {
       <div class="text-muted" style="font-size:11px;word-break:break-all;">${base}predict.html?token=${p.token}</div>
       <button class="btn btn-ghost btn-sm" onclick="copyToClipboard('${base}predict.html?token=${p.token}')">URLコピー</button>
       <button class="btn btn-ghost btn-sm text-red" onclick="confirmResetPrediction('${p.id}','${p.name}')">リセット</button>
+      <button class="btn btn-red btn-sm" onclick="confirmDeleteParticipant('${p.id}','${p.name}')">削除</button>
     </div>`;
   }).join('');
 }
@@ -660,6 +661,31 @@ async function addNewParticipant() {
     hideSpinner();
     showToast('エラー: ' + e.message, 'error');
   }
+}
+
+function confirmDeleteParticipant(id, name) {
+  showModal({
+    title: '参加者を削除',
+    body: `<strong>${name}</strong> さんを完全に削除します。<br>予想データも含めてすべて削除されます。<br>この操作は取り消せません。`,
+    confirmLabel: '削除する',
+    confirmClass: 'btn-red',
+    onConfirm: async () => {
+      try {
+        showSpinner();
+        await deleteParticipant(id);
+        allParticipants = await getParticipants();
+        allPredictions  = await getAllPredictions();
+        renderParticipantList();
+        renderSecretCards();
+        renderSubmissionStatus();
+        hideSpinner();
+        showToast(`${name}さんを削除しました`, 'success');
+      } catch (e) {
+        hideSpinner();
+        showToast('エラー: ' + e.message, 'error');
+      }
+    }
+  });
 }
 
 function confirmResetPrediction(id, name) {
