@@ -68,6 +68,74 @@ const JAPAN_GROUP_MATCHES = [
 ];
 
 // ---------------------------------------------------------------------------
+// Team name display map (English → カタカナ)
+// Internal data and API matching always use English keys.
+// ---------------------------------------------------------------------------
+const TEAM_NAMES_JA = {
+  // UEFA
+  'Germany':       'ドイツ',
+  'England':       'イングランド',
+  'France':        'フランス',
+  'Spain':         'スペイン',
+  'Portugal':      'ポルトガル',
+  'Netherlands':   'オランダ',
+  'Belgium':       'ベルギー',
+  'Austria':       'オーストリア',
+  'Switzerland':   'スイス',
+  'Croatia':       'クロアチア',
+  'Serbia':        'セルビア',
+  'Scotland':      'スコットランド',
+  'Turkey':        'トルコ',
+  'Ukraine':       'ウクライナ',
+  'Denmark':       'デンマーク',
+  'Hungary':       'ハンガリー',
+  // CONMEBOL
+  'Argentina':     'アルゼンチン',
+  'Brazil':        'ブラジル',
+  'Uruguay':       'ウルグアイ',
+  'Colombia':      'コロンビア',
+  'Ecuador':       'エクアドル',
+  'Venezuela':     'ベネズエラ',
+  // CONCACAF
+  'United States': 'アメリカ',
+  'Mexico':        'メキシコ',
+  'Canada':        'カナダ',
+  'Panama':        'パナマ',
+  'Honduras':      'ホンジュラス',
+  'Jamaica':       'ジャマイカ',
+  // CAF
+  'Morocco':       'モロッコ',
+  'Senegal':       'セネガル',
+  'Egypt':         'エジプト',
+  'Ivory Coast':   'コートジボワール',
+  'Cameroon':      'カメルーン',
+  'Nigeria':       'ナイジェリア',
+  'South Africa':  '南アフリカ',
+  'Algeria':       'アルジェリア',
+  'DR Congo':      'コンゴ民主共和国',
+  // AFC
+  'Japan':         '日本',
+  'South Korea':   '韓国',
+  'Iran':          'イラン',
+  'Saudi Arabia':  'サウジアラビア',
+  'Australia':     'オーストラリア',
+  'Jordan':        'ヨルダン',
+  'Iraq':          'イラク',
+  'Uzbekistan':    'ウズベキスタン',
+  // OFC
+  'New Zealand':   'ニュージーランド',
+  // プレーオフ枠
+  'Slovenia':      'スロベニア',
+  'Greece':        'ギリシャ',
+  'Bolivia':       'ボリビア',
+};
+
+// 英語名 → 表示名（カタカナがあればカタカナ、なければ英語そのまま）
+function teamJa(en) {
+  return TEAM_NAMES_JA[en] || en;
+}
+
+// ---------------------------------------------------------------------------
 // Round labels (Japanese)
 // ---------------------------------------------------------------------------
 const ROUND_LABELS = {

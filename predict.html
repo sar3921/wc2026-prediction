@@ -495,7 +495,7 @@ function renderGroupPickers() {
 }
 
 function teamOptions(teams) {
-  return `<option value="">— 選択 —</option>` + teams.map(t => `<option value="${t}">${t}</option>`).join('');
+  return `<option value="">— 選択 —</option>` + teams.map(t => `<option value="${t}">${teamJa(t)}</option>`).join('');
 }
 
 function renderThirdPlaceGrid() {
@@ -579,7 +579,7 @@ function updateDHLabel(team) {
   const el = document.getElementById('dh-sel-label');
   if (!el) return;
   if (team) {
-    el.textContent = team;
+    el.textContent = teamJa(team);
     el.className = 'bracket-pick-count ok';
   } else {
     el.textContent = '未選択';
@@ -594,7 +594,7 @@ function renderJapanMatches() {
     div.className = 'card mt-8';
     div.style.padding = '12px 14px';
     div.innerHTML = `
-      <div class="match-label mb-8">第${i+1}戦 vs <strong>${m.opponent}</strong></div>
+      <div class="match-label mb-8">第${i+1}戦 vs <strong>${teamJa(m.opponent)}</strong></div>
       <div class="score-pair">
         <span style="font-size:13px;font-weight:600;">🇯🇵</span>
         <input type="number" id="e-japan-${i}" class="form-input score-pair" min="0" max="20"

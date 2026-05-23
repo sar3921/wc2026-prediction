@@ -116,7 +116,7 @@ function renderTeamGrid({ containerId, teams, selected = [], maxSelect = null, o
   teams.forEach(team => {
     const chip = document.createElement('div');
     chip.className = 'team-chip';
-    chip.textContent = team;
+    chip.textContent = teamJa(team);
     chip.dataset.team = team;
 
     const isSelected = selectedSet.has(team.toLowerCase());
