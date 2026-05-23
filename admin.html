@@ -1,0 +1,732 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>管理画面 — WC2026 予想レース</title>
+<link rel="stylesheet" href="css/common.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  .login-screen {
+    min-height: 60vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .login-card { width: 100%; max-width: 360px; }
+
+  /* Prediction preview table */
+  .pred-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .pred-table th { background:#f5f5f5; padding:6px 8px; font-weight:600; color:#555; text-align:left; }
+  .pred-table td { padding:6px 8px; border-bottom:1px solid var(--border); vertical-align:top; }
+  .pred-table tr:last-child td { border-bottom:none; }
+
+  /* Result input row */
+  .result-row {
+    display: grid;
+    grid-template-columns: 100px 1fr;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .result-row:last-child { border-bottom: none; }
+  .result-label { font-size: 13px; font-weight: 600; color: var(--muted); }
+
+  /* Participant table */
+  .pt-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr auto auto;
+    gap: 8px;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .pt-row:last-child { border-bottom: none; }
+
+  /* Secret card row */
+  .secret-row {
+    background: white;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    padding: 12px 14px;
+    margin-bottom: 8px;
+  }
+  .secret-text {
+    font-size: 14px;
+    font-style: italic;
+    margin: 8px 0;
+    padding: 8px;
+    background: #f8f9fb;
+    border-radius: 4px;
+    color: var(--navy);
+  }
+  .secret-row.empty .secret-text { color: var(--muted); font-style: normal; }
+
+  .sync-log {
+    background: #1a1a2e;
+    color: #0f0;
+    border-radius: var(--radius-sm);
+    padding: 12px;
+    font-family: monospace;
+    font-size: 12px;
+    max-height: 200px;
+    overflow-y: auto;
+    margin-top: 10px;
+    white-space: pre-wrap;
+    display: none;
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header-bar">
+    <div class="icon">🛠️</div>
+    <div style="flex:1">
+      <h1>管理画面</h1>
+      <p>WC2026 予想レース — 管理者専用</p>
+    </div>
+    <div class="header-actions">
+      <a href="index.html" class="btn btn-ghost btn-sm">順位表</a>
+      <button class="btn btn-ghost btn-sm" id="btn-logout" style="display:none;" onclick="logout()">ログアウト</button>
+    </div>
+  </div>
+
+  <!-- Login screen -->
+  <div class="login-screen" id="login-screen">
+    <div class="login-card card">
+      <div class="card-header"><h2>🔐 管理者ログイン</h2></div>
+      <div class="card-body">
+        <div class="form-group">
+          <label class="form-label">パスワード</label>
+          <input type="password" id="login-pw" class="form-input" placeholder="管理者パスワード"
+            onkeydown="if(event.key==='Enter') doLogin()">
+        </div>
+        <button class="btn btn-primary btn-full mt-8" onclick="doLogin()">ログイン</button>
+        <div class="text-muted mt-8" style="font-size:12px;text-align:center;">
+          <a href="setup.html">初回セットアップへ</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Admin panel (shown after login) -->
+  <div id="admin-panel" style="display:none;">
+
+    <!-- Tab bar -->
+    <div class="tab-bar" id="admin-tabs">
+      <button class="tab-btn active" data-tab="tab-dashboard">📊 ダッシュボード</button>
+      <button class="tab-btn" data-tab="tab-results">⚽ 試合結果</button>
+      <button class="tab-btn" data-tab="tab-secret">🔒 封印カード</button>
+      <button class="tab-btn" data-tab="tab-participants">👥 参加者</button>
+      <button class="tab-btn" data-tab="tab-dh">🃏 ダークホース</button>
+    </div>
+
+    <!-- ===== Tab: Dashboard ===== -->
+    <div class="tab-content active" id="tab-dashboard">
+      <div class="stat-grid" id="dash-stats">
+        <div class="stat-card"><div class="s-num" id="d-total">—</div><div class="s-label">参加者数</div></div>
+        <div class="stat-card"><div class="s-num" id="d-submitted">—</div><div class="s-label">提出済み</div></div>
+        <div class="stat-card"><div class="s-num" id="d-synced">—</div><div class="s-label">最終同期</div></div>
+        <div class="stat-card"><div class="s-num" id="d-locked">—</div><div class="s-label">予想ロック</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h2>予想ロック設定</h2></div>
+        <div class="card-body">
+          <div class="note mb-12">ロックすると参加者は予想を編集できなくなります。開幕24時間前にロックしてください。</div>
+          <div class="flex gap-8">
+            <button class="btn btn-red" id="btn-lock" onclick="toggleLock(true)">🔒 予想をロックする</button>
+            <button class="btn btn-ghost" id="btn-unlock" onclick="toggleLock(false)">🔓 ロック解除</button>
+          </div>
+          <div class="text-muted mt-8 mb-8" style="font-size:12px;">現在の状態: <strong id="lock-status">—</strong></div>
+        </div>
+      </div>
+
+      <div class="card mt-12">
+        <div class="card-header"><h2>提出状況</h2></div>
+        <div class="card-body" id="submission-status">
+          <div class="text-muted">読み込み中...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Tab: Results ===== -->
+    <div class="tab-content" id="tab-results">
+
+      <!-- API Sync -->
+      <div class="card mb-12">
+        <div class="card-header"><h2>🔄 football-data.org 自動同期</h2></div>
+        <div class="card-body">
+          <div class="note mb-12">
+            試合結果を自動取得します。<a href="https://www.football-data.org" target="_blank">football-data.org</a>
+            でメールアドレスのみで無料登録するとAPIキーがすぐ届きます。
+          </div>
+          <div class="flex gap-8 mb-8">
+            <input type="text" id="api-key-input" class="form-input" placeholder="APIキーを入力..." style="flex:1;">
+            <button class="btn btn-ghost btn-sm" onclick="saveApiKey()">保存</button>
+          </div>
+          <button class="btn btn-primary" id="btn-sync" onclick="doSync()">⟳ 今すぐ同期</button>
+          <div class="sync-log" id="sync-log"></div>
+        </div>
+      </div>
+
+      <!-- Manual results -->
+      <div class="card mb-12">
+        <div class="card-header"><h2>✏️ 手動入力（APIで取得できない項目）</h2></div>
+        <div class="card-body">
+          <div class="note orange mb-12">アシスト王・ゴールデンボール・ゴールデングローブは手動入力が必要です</div>
+          <div class="result-row"><div class="result-label">アシスト王</div>
+            <input type="text" id="r-assist-king" class="form-input" placeholder="選手名"></div>
+          <div class="result-row"><div class="result-label">ゴールデンボール</div>
+            <input type="text" id="r-golden-ball" class="form-input" placeholder="選手名"></div>
+          <div class="result-row"><div class="result-label">ゴールデングローブ</div>
+            <input type="text" id="r-golden-glove" class="form-input" placeholder="GK選手名"></div>
+          <div class="result-row"><div class="result-label">日本得点王</div>
+            <input type="text" id="r-japan-scorer" class="form-input" placeholder="選手名"></div>
+          <div class="result-row"><div class="result-label">日本最終ラウンド</div>
+            <select id="r-japan-round" class="form-select">
+              <option value="">— 選択 —</option>
+              <option value="group">グループ敗退</option>
+              <option value="r32">ベスト32</option>
+              <option value="r16">ベスト16</option>
+              <option value="qf">ベスト8</option>
+              <option value="sf">ベスト4</option>
+              <option value="final">決勝</option>
+              <option value="champion">優勝</option>
+            </select>
+          </div>
+          <button class="btn btn-primary mt-12" onclick="saveManualResults()">保存</button>
+        </div>
+      </div>
+
+      <!-- Group results manual -->
+      <div class="card">
+        <div class="card-header">
+          <h2>グループ結果（手動上書き）</h2>
+          <button class="btn btn-ghost btn-sm" onclick="loadGroupResults()">現在値を読み込む</button>
+        </div>
+        <div class="card-body">
+          <div class="note mb-12">APIで取得した値を修正したい場合のみ使用してください</div>
+          <div id="group-result-inputs"></div>
+          <button class="btn btn-primary mt-12" onclick="saveGroupResults()">グループ結果を保存</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Tab: Secret Card ===== -->
+    <div class="tab-content" id="tab-secret">
+      <div class="note mb-12">
+        開幕前に全員でこの画面を見ながらサプライズ予想を公開。<br>
+        サプライズ度を議論してポイントを0〜100で設定してください。
+      </div>
+      <div id="secret-cards"></div>
+      <button class="btn btn-primary mt-16 btn-full" onclick="saveAllSecretPoints()">封印カードのポイントを一括保存</button>
+    </div>
+
+    <!-- ===== Tab: Participants ===== -->
+    <div class="tab-content" id="tab-participants">
+      <div class="card mb-12">
+        <div class="card-header"><h2>参加者一覧</h2></div>
+        <div class="card-body" id="participant-list">
+          <div class="text-muted">読み込み中...</div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h2>参加者を追加</h2></div>
+        <div class="card-body">
+          <div class="flex gap-8">
+            <input type="text" id="new-participant-name" class="form-input" placeholder="参加者名" style="flex:1;">
+            <button class="btn btn-primary" onclick="addNewParticipant()">追加</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== Tab: Dark Horse pool ===== -->
+    <div class="tab-content" id="tab-dh">
+      <div class="card">
+        <div class="card-header"><h2>ダークホース対象チーム（24チーム選択）</h2></div>
+        <div class="card-body">
+          <div class="note mb-12">
+            ブックメーカーオッズ下位24チームを選択してください。<br>
+            現在 <span id="dh-admin-count" class="text-red font-bold">0</span> / 24 チーム選択中
+          </div>
+          <div id="dh-admin-grid"></div>
+          <button class="btn btn-primary mt-16" onclick="saveDHPool()">ダークホースプールを保存</button>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /admin-panel -->
+
+</div><!-- /container -->
+
+<script src="js/config.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/db.js"></script>
+<script src="js/api.js"></script>
+<script>
+let allParticipants = [];
+let allPredictions  = [];
+let tournamentState = {};
+
+// ---------------------------------------------------------------------------
+// Login
+// ---------------------------------------------------------------------------
+async function doLogin() {
+  const pw = document.getElementById('login-pw').value;
+  if (!pw) return;
+  showSpinner();
+  const ok = await verifyAdminPassword(pw);
+  hideSpinner();
+  if (ok) {
+    showAdminPanel();
+  } else {
+    showToast('パスワードが間違っています', 'error');
+  }
+}
+
+function showAdminPanel() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('admin-panel').style.display = 'block';
+  document.getElementById('btn-logout').style.display = 'inline-flex';
+  initTabs('admin-tabs', 'tab-dashboard');
+  loadAllData();
+}
+
+function logout() {
+  adminLogout();
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('admin-panel').style.display = 'none';
+  document.getElementById('btn-logout').style.display = 'none';
+}
+
+// ---------------------------------------------------------------------------
+// Load all data
+// ---------------------------------------------------------------------------
+async function loadAllData() {
+  if (requireSetup()) return;
+  try {
+    [allParticipants, allPredictions, tournamentState] = await Promise.all([
+      getParticipants(),
+      getAllPredictions(),
+      getTournamentState(),
+    ]);
+
+    renderDashboard();
+    renderSubmissionStatus();
+    renderParticipantList();
+    renderSecretCards();
+    loadGroupResults();
+    loadManualResults();
+    loadApiKey();
+    renderDHGrid();
+  } catch (e) {
+    showToast('データ読み込みエラー: ' + e.message, 'error');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Dashboard
+// ---------------------------------------------------------------------------
+async function renderDashboard() {
+  document.getElementById('d-total').textContent = allParticipants.length;
+  document.getElementById('d-submitted').textContent =
+    allPredictions.filter(p => p.submitted).length + '/' + allParticipants.length;
+  document.getElementById('d-synced').textContent =
+    tournamentState.last_synced_at ? fmtDate(tournamentState.last_synced_at) : '未同期';
+
+  const locked = await getConfig('predictions_locked');
+  const isLocked = locked === true;
+  document.getElementById('d-locked').textContent = isLocked ? '🔒 中' : '🔓 解除中';
+  document.getElementById('lock-status').textContent = isLocked ? 'ロック中（編集不可）' : '解除中（編集可能）';
+  document.getElementById('btn-lock').style.display = isLocked ? 'none' : 'inline-flex';
+  document.getElementById('btn-unlock').style.display = isLocked ? 'inline-flex' : 'none';
+}
+
+function renderSubmissionStatus() {
+  const container = document.getElementById('submission-status');
+  if (allParticipants.length === 0) {
+    container.innerHTML = '<div class="text-muted">参加者がいません</div>';
+    return;
+  }
+  const base = window.location.origin + window.location.pathname.replace('admin.html', '');
+  container.innerHTML = allParticipants.map(p => {
+    const pred = allPredictions.find(pr => pr.participant_id === p.id);
+    const status = pred?.submitted
+      ? `<span class="status-chip confirmed">✓ 提出済み ${pred.submitted_at ? fmtDate(pred.submitted_at) : ''}</span>`
+      : `<span class="status-chip pending">未提出</span>`;
+    return `<div class="flex-between gap-8 mb-8">
+      <div>
+        <div class="font-bold">${p.name}</div>
+        <div class="text-muted" style="font-size:11px;word-break:break-all;">${base}predict.html?token=${p.token}</div>
+      </div>
+      <div class="flex gap-8">
+        ${status}
+        <button class="btn btn-ghost btn-sm" onclick="copyToClipboard('${base}predict.html?token=${p.token}')">URLコピー</button>
+      </div>
+    </div>`;
+  }).join('<hr class="divider">');
+}
+
+// ---------------------------------------------------------------------------
+// Lock/Unlock
+// ---------------------------------------------------------------------------
+async function toggleLock(lock) {
+  showModal({
+    title: lock ? '予想をロックしますか？' : '予想ロックを解除しますか？',
+    body: lock
+      ? '参加者は予想を編集できなくなります。開幕前に実行してください。'
+      : 'ロックを解除すると参加者が再び編集できるようになります。',
+    confirmLabel: lock ? '🔒 ロックする' : '🔓 解除する',
+    confirmClass: lock ? 'btn-red' : 'btn-primary',
+    onConfirm: async () => {
+      try {
+        showSpinner();
+        await setConfig('predictions_locked', lock);
+        await renderDashboard();
+        hideSpinner();
+        showToast(lock ? '予想をロックしました' : 'ロックを解除しました', 'success');
+      } catch (e) {
+        hideSpinner();
+        showToast('エラー: ' + e.message, 'error');
+      }
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
+// API Sync
+// ---------------------------------------------------------------------------
+async function loadApiKey() {
+  const key = await getConfig('api_key');
+  if (key && key !== 'CHANGE_ME') {
+    document.getElementById('api-key-input').value = key;
+  }
+}
+
+async function saveApiKey() {
+  const key = document.getElementById('api-key-input').value.trim();
+  if (!key) return;
+  await setConfig('api_key', key);
+  showToast('APIキーを保存しました', 'success');
+}
+
+function log(msg) {
+  const el = document.getElementById('sync-log');
+  el.style.display = 'block';
+  el.textContent += `[${new Date().toLocaleTimeString('ja-JP')}] ${msg}\n`;
+  el.scrollTop = el.scrollHeight;
+}
+
+async function doSync() {
+  const apiKey = document.getElementById('api-key-input').value.trim();
+  if (!apiKey) { showToast('APIキーを入力してください', 'error'); return; }
+
+  const btn = document.getElementById('btn-sync');
+  btn.disabled = true;
+  btn.textContent = '同期中...';
+  document.getElementById('sync-log').textContent = '';
+
+  try {
+    log('football-data.org に接続中...');
+    await saveApiKey();
+
+    const { groupResults, knockoutResults, japanResults, scorerPatch, rawCache } = await syncAll(apiKey);
+
+    log(`グループ結果: ${Object.keys(groupResults).length}グループ取得`);
+    log(`ノックアウト: R32=${knockoutResults.r32.length} R16=${knockoutResults.r16.length} QF=${knockoutResults.qf.length}`);
+    log(`日本の最終ラウンド: ${japanResults.final_round} (ゴール${japanResults.total_goals ?? 0}点)`);
+    log(`得点王: ${scorerPatch.top_scorer || '未確定'}`);
+
+    // Merge with existing awards (don't overwrite manual fields)
+    const existingAwards = tournamentState.awards || {};
+    const mergedAwards = {
+      ...existingAwards,
+      top_scorer: scorerPatch.top_scorer || existingAwards.top_scorer,
+    };
+
+    // Merge japan results (don't overwrite manual top_scorer)
+    const existingJapan = tournamentState.japan_results || {};
+    const mergedJapan = {
+      ...japanResults,
+      top_scorer: existingJapan.top_scorer || japanResults.top_scorer,
+      final_round: japanResults.final_round || existingJapan.final_round,
+    };
+
+    await upsertTournamentState({
+      group_results:    groupResults,
+      knockout_results: knockoutResults,
+      awards:           mergedAwards,
+      japan_results:    mergedJapan,
+      last_synced_at:   new Date().toISOString(),
+      raw_api_cache:    rawCache,
+    });
+
+    tournamentState = await getTournamentState();
+    log('✓ 同期完了！');
+    showToast('同期が完了しました', 'success');
+    loadManualResults();
+    await renderDashboard();
+
+  } catch (e) {
+    log(`✗ エラー: ${e.message}`);
+    showToast('同期エラー: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⟳ 今すぐ同期';
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Manual results
+// ---------------------------------------------------------------------------
+function loadManualResults() {
+  const aw = tournamentState.awards || {};
+  const jp = tournamentState.japan_results || {};
+  document.getElementById('r-assist-king').value   = aw.assist_king   || '';
+  document.getElementById('r-golden-ball').value   = aw.golden_ball   || '';
+  document.getElementById('r-golden-glove').value  = aw.golden_glove  || '';
+  document.getElementById('r-japan-scorer').value  = jp.top_scorer    || '';
+  document.getElementById('r-japan-round').value   = jp.final_round   || '';
+}
+
+async function saveManualResults() {
+  try {
+    showSpinner();
+    const aw = { ...(tournamentState.awards || {}) };
+    aw.assist_king  = document.getElementById('r-assist-king').value.trim()  || aw.assist_king;
+    aw.golden_ball  = document.getElementById('r-golden-ball').value.trim()  || aw.golden_ball;
+    aw.golden_glove = document.getElementById('r-golden-glove').value.trim() || aw.golden_glove;
+
+    const jp = { ...(tournamentState.japan_results || {}) };
+    jp.top_scorer  = document.getElementById('r-japan-scorer').value.trim() || jp.top_scorer;
+    jp.final_round = document.getElementById('r-japan-round').value         || jp.final_round;
+
+    await upsertTournamentState({ awards: aw, japan_results: jp });
+    tournamentState.awards        = aw;
+    tournamentState.japan_results = jp;
+    hideSpinner();
+    showToast('手動入力を保存しました', 'success');
+  } catch (e) {
+    hideSpinner();
+    showToast('エラー: ' + e.message, 'error');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Group results manual input
+// ---------------------------------------------------------------------------
+function loadGroupResults() {
+  const container = document.getElementById('group-result-inputs');
+  container.innerHTML = '';
+  const grp = tournamentState.group_results || {};
+
+  Object.keys(WC2026_GROUPS).forEach(g => {
+    const actual = grp[g] || {};
+    const div = document.createElement('div');
+    div.style.cssText = 'display:flex;gap:6px;align-items:center;margin-bottom:6px;';
+    div.innerHTML = `
+      <span style="width:24px;font-weight:800;">${g}</span>
+      <input type="text" class="form-input gr-first"  data-group="${g}" value="${actual.first||''}"  placeholder="1位" style="flex:1;">
+      <input type="text" class="form-input gr-second" data-group="${g}" value="${actual.second||''}" placeholder="2位" style="flex:1;">
+      <input type="text" class="form-input gr-third"  data-group="${g}" value="${actual.third||''}"  placeholder="3位" style="flex:1;">`;
+    container.appendChild(div);
+  });
+}
+
+async function saveGroupResults() {
+  try {
+    showSpinner();
+    const grp = { ...(tournamentState.group_results || {}) };
+    document.querySelectorAll('.gr-first').forEach(el => {
+      const g = el.dataset.group;
+      if (!grp[g]) grp[g] = {};
+      grp[g].first = el.value.trim();
+    });
+    document.querySelectorAll('.gr-second').forEach(el => {
+      const g = el.dataset.group;
+      if (!grp[g]) grp[g] = {};
+      grp[g].second = el.value.trim();
+    });
+    document.querySelectorAll('.gr-third').forEach(el => {
+      const g = el.dataset.group;
+      if (!grp[g]) grp[g] = {};
+      grp[g].third = el.value.trim();
+    });
+    await upsertTournamentState({ group_results: grp });
+    tournamentState.group_results = grp;
+    hideSpinner();
+    showToast('グループ結果を保存しました', 'success');
+  } catch (e) {
+    hideSpinner();
+    showToast('エラー: ' + e.message, 'error');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Secret card
+// ---------------------------------------------------------------------------
+function renderSecretCards() {
+  const container = document.getElementById('secret-cards');
+  container.innerHTML = '';
+
+  allParticipants.forEach(p => {
+    const pred = allPredictions.find(pr => pr.participant_id === p.id);
+    const text = pred?.part_f?.text || null;
+    const pts  = pred?.part_f_points ?? null;
+    const hasText = !!text;
+
+    const div = document.createElement('div');
+    div.className = `secret-row ${hasText ? '' : 'empty'}`;
+    div.innerHTML = `
+      <div class="flex-between">
+        <div class="font-bold">${p.name}</div>
+        <div class="status-chip ${pred?.submitted ? 'confirmed' : 'pending'}">${pred?.submitted ? '提出済' : '未提出'}</div>
+      </div>
+      <div class="secret-text">${hasText ? text : '（まだ提出されていません）'}</div>
+      <div class="flex gap-8 mt-8 align-items-center">
+        <label style="font-size:13px;font-weight:600;">ポイント:</label>
+        <input type="number" class="form-input secret-pts" data-pid="${p.id}"
+          value="${pts !== null ? pts : ''}" min="0" max="100" placeholder="0〜100"
+          style="width:90px;">
+        <span class="text-muted" style="font-size:12px;">/ 100pt</span>
+      </div>`;
+    container.appendChild(div);
+  });
+}
+
+async function saveAllSecretPoints() {
+  try {
+    showSpinner();
+    const inputs = document.querySelectorAll('.secret-pts');
+    for (const input of inputs) {
+      const pid = input.dataset.pid;
+      const pts = parseInt(input.value) || 0;
+      await setPartFPoints(pid, pts);
+    }
+    hideSpinner();
+    showToast('封印カードのポイントを保存しました', 'success');
+    allPredictions = await getAllPredictions();
+  } catch (e) {
+    hideSpinner();
+    showToast('エラー: ' + e.message, 'error');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Participants
+// ---------------------------------------------------------------------------
+function renderParticipantList() {
+  const container = document.getElementById('participant-list');
+  if (allParticipants.length === 0) {
+    container.innerHTML = '<div class="text-muted">参加者がいません</div>';
+    return;
+  }
+  const base = window.location.origin + window.location.pathname.replace('admin.html', '');
+  container.innerHTML = allParticipants.map(p => {
+    const pred = allPredictions.find(pr => pr.participant_id === p.id);
+    return `<div class="pt-row">
+      <div>
+        <div class="font-bold">${p.name}</div>
+        <div class="status-chip ${pred?.submitted ? 'confirmed' : 'pending'}" style="margin-top:4px;">${pred?.submitted ? '提出済' : '未提出'}</div>
+      </div>
+      <div class="text-muted" style="font-size:11px;word-break:break-all;">${base}predict.html?token=${p.token}</div>
+      <button class="btn btn-ghost btn-sm" onclick="copyToClipboard('${base}predict.html?token=${p.token}')">URLコピー</button>
+      <button class="btn btn-ghost btn-sm text-red" onclick="confirmResetPrediction('${p.id}','${p.name}')">リセット</button>
+    </div>`;
+  }).join('');
+}
+
+async function addNewParticipant() {
+  const name = document.getElementById('new-participant-name').value.trim();
+  if (!name) { showToast('名前を入力してください', 'error'); return; }
+  try {
+    showSpinner();
+    const token = generateToken();
+    await addParticipant(name, token);
+    document.getElementById('new-participant-name').value = '';
+    allParticipants = await getParticipants();
+    renderParticipantList();
+    renderSubmissionStatus();
+    renderSecretCards();
+    hideSpinner();
+    showToast(`${name}さんを追加しました`, 'success');
+  } catch (e) {
+    hideSpinner();
+    showToast('エラー: ' + e.message, 'error');
+  }
+}
+
+function confirmResetPrediction(id, name) {
+  showModal({
+    title: '予想をリセット',
+    body: `<strong>${name}</strong> さんの予想データをすべて削除します。<br>この操作は取り消せません。`,
+    confirmLabel: 'リセットする',
+    confirmClass: 'btn-red',
+    onConfirm: async () => {
+      try {
+        showSpinner();
+        await resetPrediction(id);
+        allPredictions = await getAllPredictions();
+        renderParticipantList();
+        renderSecretCards();
+        renderSubmissionStatus();
+        hideSpinner();
+        showToast(`${name}さんの予想をリセットしました`, 'success');
+      } catch (e) {
+        hideSpinner();
+        showToast('エラー: ' + e.message, 'error');
+      }
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Dark horse pool
+// ---------------------------------------------------------------------------
+async function renderDHGrid() {
+  const pool = await getConfig('dark_horse_pool');
+  const current = Array.isArray(pool) ? pool : [];
+
+  renderTeamGrid({
+    containerId: 'dh-admin-grid',
+    teams: ALL_TEAMS,
+    selected: current,
+    maxSelect: 24,
+    onSelect: (sel) => {
+      document.getElementById('dh-admin-count').textContent = sel.length;
+    }
+  });
+  document.getElementById('dh-admin-count').textContent = current.length;
+}
+
+async function saveDHPool() {
+  const selected = getSelectedTeams('dh-admin-grid');
+  try {
+    showSpinner();
+    await setConfig('dark_horse_pool', selected);
+    hideSpinner();
+    showToast(`ダークホースプールを保存しました（${selected.length}チーム）`, 'success');
+  } catch (e) {
+    hideSpinner();
+    showToast('エラー: ' + e.message, 'error');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Init
+// ---------------------------------------------------------------------------
+if (requireSetup()) { /* redirected */ }
+else if (isAdminAuthenticated()) {
+  showAdminPanel();
+} else {
+  document.getElementById('login-screen').style.display = 'flex';
+}
+</script>
+</body>
+</html>

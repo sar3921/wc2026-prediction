@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>初回セットアップ — WC2026 予想レース</title>
+<link rel="stylesheet" href="css/common.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+<div class="container-sm">
+
+  <div class="header-bar">
+    <div class="icon">⚙️</div>
+    <div>
+      <h1>初回セットアップ</h1>
+      <p>WC2026 予想レース — 環境設定ウィザード</p>
+    </div>
+  </div>
+
+  <!-- ===== Admin guard (shown when already configured) ===== -->
+  <div id="auth-guard" style="display:none;">
+    <div class="card">
+      <div class="card-header"><h2>🔐 管理者認証が必要です</h2></div>
+      <div class="card-body">
+        <div class="note mb-12">セットアップ済みのため、変更には管理者パスワードが必要です。</div>
+        <div class="form-group">
+          <label class="form-label">管理者パスワード</label>
+          <input type="password" id="guard-pw" class="form-input" placeholder="管理者パスワード"
+            onkeydown="if(event.key==='Enter') checkGuard()">
+        </div>
+        <button class="btn btn-primary btn-full mt-8" onclick="checkGuard()">認証して開く</button>
+        <div class="text-center mt-12">
+          <a href="admin.html" class="text-muted" style="font-size:13px;">← 管理画面に戻る</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Main wizard (hidden until auth passes) ===== -->
+  <div id="wizard-wrap">
+
+  <!-- Progress -->
+  <div class="wizard-progress" id="wizard-progress">
+    <div class="wizard-step active" data-step="1"><div class="dot">1</div><div class="label">Supabase</div></div>
+    <div class="wizard-step" data-step="2"><div class="dot">2</div><div class="label">パスワード</div></div>
+    <div class="wizard-step" data-step="3"><div class="dot">3</div><div class="label">参加者</div></div>
+    <div class="wizard-step" data-step="4"><div class="dot">4</div><div class="label">設定</div></div>
+    <div class="wizard-step" data-step="5"><div class="dot">5</div><div class="label">ダークホース</div></div>
+  </div>
+
+  <!-- ===== STEP 1: Supabase ===== -->
+  <div class="wizard-panel active card" id="panel-1">
+    <div class="card-header"><h2>① Supabase接続設定</h2></div>
+    <div class="card-body">
+      <div class="note mb-12">
+        <strong>事前準備:</strong> <a href="https://supabase.com" target="_blank">supabase.com</a> で無料プロジェクトを作成し、
+        <code>Settings → API</code> から URL と anon key をコピーしてください。<br><br>
+        次に <a href="schema.sql" target="_blank">schema.sql</a> の内容を Supabase の <code>SQL Editor</code> で実行してください。
+      </div>
+      <div class="form-group">
+        <label class="form-label">Project URL</label>
+        <input type="url" id="sb-url" class="form-input" placeholder="https://xxxxxxxxxxxx.supabase.co">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Anon Public Key</label>
+        <input type="text" id="sb-key" class="form-input" placeholder="eyJhbGc...">
+      </div>
+      <button class="btn btn-primary btn-full mt-8" id="btn-test-conn">接続テスト → 次へ</button>
+      <div id="conn-result" class="mt-8"></div>
+    </div>
+  </div>
+
+  <!-- ===== STEP 2: Admin password ===== -->
+  <div class="wizard-panel card" id="panel-2">
+    <div class="card-header"><h2>② 管理者パスワード設定</h2></div>
+    <div class="card-body">
+      <div class="note mb-12">admin.html へのアクセスに使います。忘れた場合はSupabaseのSQLで直接変更が必要です。</div>
+      <div class="form-group">
+        <label class="form-label">パスワード（6文字以上）</label>
+        <input type="password" id="admin-pw" class="form-input" placeholder="●●●●●●">
+      </div>
+      <div class="form-group">
+        <label class="form-label">パスワード（確認）</label>
+        <input type="password" id="admin-pw2" class="form-input" placeholder="●●●●●●">
+      </div>
+      <div class="flex gap-8 mt-8">
+        <button class="btn btn-ghost" onclick="goStep(1)">← 戻る</button>
+        <button class="btn btn-primary" style="flex:1" id="btn-set-pw">設定して次へ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== STEP 3: Participants ===== -->
+  <div class="wizard-panel card" id="panel-3">
+    <div class="card-header"><h2>③ 参加者登録（最大10名）</h2></div>
+    <div class="card-body">
+      <div class="note mb-12">名前を入力すると予想入力用の固有URLが生成されます。後から追加も可能です。</div>
+      <div id="participant-rows"></div>
+      <button class="btn btn-ghost btn-sm mt-8" id="btn-add-row">+ 参加者を追加</button>
+      <div class="flex gap-8 mt-16">
+        <button class="btn btn-ghost" onclick="goStep(2)">← 戻る</button>
+        <button class="btn btn-primary" style="flex:1" id="btn-save-participants">登録して次へ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== STEP 4: Tournament settings ===== -->
+  <div class="wizard-panel card" id="panel-4">
+    <div class="card-header"><h2>④ 大会設定</h2></div>
+    <div class="card-body">
+      <div class="form-group">
+        <label class="form-label">大会開始日時（予想締切の基準）</label>
+        <input type="datetime-local" id="tournament-start" class="form-input" value="2026-06-11T00:00">
+        <div class="form-hint">WC2026 開幕: 2026年6月11日（現地時間）</div>
+      </div>
+      <div class="form-group mt-12">
+        <label class="form-label">football-data.org API Key（任意・後で設定可能）</label>
+        <input type="text" id="fdapi-key" class="form-input" placeholder="取得後に入力（football-data.org で無料登録）">
+        <div class="form-hint">メールアドレスを登録するだけで即取得できます。試合結果の自動同期に必要です。</div>
+      </div>
+      <div class="flex gap-8 mt-16">
+        <button class="btn btn-ghost" onclick="goStep(3)">← 戻る</button>
+        <button class="btn btn-primary" style="flex:1" id="btn-save-settings">保存して次へ</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== STEP 5: Dark horse pool ===== -->
+  <div class="wizard-panel card" id="panel-5">
+    <div class="card-header"><h2>⑤ ダークホース対象チーム選択</h2></div>
+    <div class="card-body">
+      <div class="note mb-12">
+        ブックメーカーオッズ下位24チームを選んでください（優勝候補以外）。<br>
+        現在 <span id="dh-count" class="text-red font-bold">0</span> / 24 チーム選択中
+      </div>
+      <div id="dh-team-grid"></div>
+      <div class="flex gap-8 mt-16">
+        <button class="btn btn-ghost" onclick="goStep(4)">← 戻る</button>
+        <button class="btn btn-green" style="flex:1" id="btn-finish">✓ セットアップ完了</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Completion ===== -->
+  <div class="wizard-panel card" id="panel-done" style="text-align:center;">
+    <div class="card-body" style="padding:32px 20px;">
+      <div style="font-size:56px;margin-bottom:16px;">🎉</div>
+      <h2 style="font-size:20px;font-weight:800;margin-bottom:12px;">セットアップ完了！</h2>
+      <p class="text-muted mb-16">参加者URLを配布して予想入力を開始しましょう。</p>
+      <div id="participant-urls" class="mb-16" style="text-align:left;"></div>
+      <div class="flex gap-8" style="justify-content:center;">
+        <a href="admin.html" class="btn btn-primary">管理画面へ →</a>
+        <a href="index.html" class="btn btn-ghost">順位表を見る</a>
+      </div>
+    </div>
+  </div>
+
+  <div class="page-footer">WC2026 予想レース v1.0</div>
+
+  </div><!-- /wizard-wrap -->
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/db.js"></script>
+<script>
+let currentStep = 1;
+let savedParticipants = []; // [{name, token}]
+
+// ---------------------------------------------------------------------------
+// Step navigation
+// ---------------------------------------------------------------------------
+function goStep(n) {
+  document.querySelectorAll('.wizard-panel').forEach(p => p.classList.remove('active'));
+  const panel = document.getElementById(`panel-${n}`) || document.getElementById('panel-done');
+  if (panel) panel.classList.add('active');
+
+  document.querySelectorAll('.wizard-step').forEach(s => {
+    const sn = parseInt(s.dataset.step);
+    s.classList.remove('active', 'done');
+    if (sn === n) s.classList.add('active');
+    else if (sn < n) s.classList.add('done');
+  });
+
+  currentStep = n;
+  window.scrollTo(0, 0);
+}
+
+// ---------------------------------------------------------------------------
+// Step 1: Test Supabase connection
+// ---------------------------------------------------------------------------
+document.getElementById('btn-test-conn').addEventListener('click', async () => {
+  const url = document.getElementById('sb-url').value.trim();
+  const key = document.getElementById('sb-key').value.trim();
+  const result = document.getElementById('conn-result');
+
+  if (!url || !key) {
+    result.innerHTML = '<div class="note red">URLとキーを両方入力してください</div>';
+    return;
+  }
+
+  result.innerHTML = '<div class="note">接続中...</div>';
+  try {
+    const client = window.supabase.createClient(url, key);
+    const { error } = await client.from('app_config').select('key').limit(1);
+    if (error) throw error;
+
+    localStorage.setItem('wc_supabase_url', url);
+    localStorage.setItem('wc_supabase_anon_key', key);
+    result.innerHTML = '<div class="note green">✓ 接続成功！</div>';
+    setTimeout(() => goStep(2), 800);
+  } catch (e) {
+    result.innerHTML = `<div class="note red">接続失敗: ${e.message}<br>URLとキーを確認してください。schema.sqlを実行しましたか？</div>`;
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Step 2: Set admin password
+// ---------------------------------------------------------------------------
+document.getElementById('btn-set-pw').addEventListener('click', async () => {
+  const pw  = document.getElementById('admin-pw').value;
+  const pw2 = document.getElementById('admin-pw2').value;
+
+  if (pw.length < 6) { showToast('パスワードは6文字以上にしてください', 'error'); return; }
+  if (pw !== pw2)    { showToast('パスワードが一致しません', 'error'); return; }
+
+  try {
+    showSpinner();
+    const hash = await sha256Hex(pw);
+    await setConfig('admin_password_hash', hash);
+    hideSpinner();
+    showToast('パスワードを設定しました', 'success');
+    initParticipantRows();
+    goStep(3);
+  } catch (e) {
+    hideSpinner();
+    showToast(`エラー: ${e.message}`, 'error');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Step 3: Participants
+// ---------------------------------------------------------------------------
+function initParticipantRows() {
+  const container = document.getElementById('participant-rows');
+  container.innerHTML = '';
+  for (let i = 0; i < 5; i++) addParticipantRow();
+}
+
+function addParticipantRow() {
+  const container = document.getElementById('participant-rows');
+  const row = document.createElement('div');
+  row.className = 'form-group flex gap-8';
+  row.innerHTML = `
+    <input type="text" class="form-input participant-name" placeholder="参加者名">
+    <button class="btn btn-ghost btn-sm btn-icon" onclick="this.parentElement.remove()" title="削除">✕</button>`;
+  container.appendChild(row);
+}
+
+document.getElementById('btn-add-row').addEventListener('click', addParticipantRow);
+
+document.getElementById('btn-save-participants').addEventListener('click', async () => {
+  const names = [...document.querySelectorAll('.participant-name')]
+    .map(el => el.value.trim()).filter(Boolean);
+
+  if (names.length === 0) { showToast('参加者名を1人以上入力してください', 'error'); return; }
+
+  try {
+    showSpinner();
+    savedParticipants = [];
+    for (const name of names) {
+      const token = generateToken();
+      const p = await addParticipant(name, token);
+      savedParticipants.push({ ...p, token });
+    }
+    hideSpinner();
+    showToast(`${names.length}名を登録しました`, 'success');
+    goStep(4);
+  } catch (e) {
+    hideSpinner();
+    showToast(`エラー: ${e.message}`, 'error');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Step 4: Settings
+// ---------------------------------------------------------------------------
+document.getElementById('btn-save-settings').addEventListener('click', async () => {
+  const start  = document.getElementById('tournament-start').value;
+  const apiKey = document.getElementById('fdapi-key').value.trim();
+
+  try {
+    showSpinner();
+    await setConfig('tournament_start', start || null);
+    if (apiKey) await setConfig('api_key', apiKey);
+    hideSpinner();
+    showToast('設定を保存しました', 'success');
+    renderDHGrid();
+    goStep(5);
+  } catch (e) {
+    hideSpinner();
+    showToast(`エラー: ${e.message}`, 'error');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Step 5: Dark horse pool
+// ---------------------------------------------------------------------------
+function renderDHGrid() {
+  let selected = [];
+  renderTeamGrid({
+    containerId: 'dh-team-grid',
+    teams: ALL_TEAMS,
+    selected,
+    maxSelect: 24,
+    onSelect: (sel) => {
+      selected = sel;
+      document.getElementById('dh-count').textContent = sel.length;
+    }
+  });
+}
+
+document.getElementById('btn-finish').addEventListener('click', async () => {
+  const selected = getSelectedTeams('dh-team-grid');
+
+  try {
+    showSpinner();
+    await setConfig('dark_horse_pool', selected);
+    hideSpinner();
+
+    // Show participant URLs
+    const base = window.location.origin + window.location.pathname.replace('setup.html', '');
+    const urlBox = document.getElementById('participant-urls');
+    urlBox.innerHTML = savedParticipants.map(p => `
+      <div class="card mt-8" style="padding:10px 14px;">
+        <div class="flex-between gap-8">
+          <div>
+            <div class="font-bold">${p.name}</div>
+            <div class="text-muted" style="font-size:11px;word-break:break-all;">${base}predict.html?token=${p.token}</div>
+          </div>
+          <button class="btn btn-ghost btn-sm"
+            onclick="copyToClipboard('${base}predict.html?token=${p.token}')">コピー</button>
+        </div>
+      </div>`).join('');
+
+    goStep('done');
+  } catch (e) {
+    hideSpinner();
+    showToast(`エラー: ${e.message}`, 'error');
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Admin guard — require password if already configured
+// ---------------------------------------------------------------------------
+async function checkGuard() {
+  const pw = document.getElementById('guard-pw').value;
+  if (!pw) return;
+  showSpinner();
+  const ok = await verifyAdminPassword(pw);
+  hideSpinner();
+  if (ok) {
+    document.getElementById('auth-guard').style.display = 'none';
+    document.getElementById('wizard-wrap').style.display = 'block';
+    prefillExisting();
+  } else {
+    showToast('パスワードが違います', 'error');
+  }
+}
+
+async function isAlreadyConfigured() {
+  const url = localStorage.getItem('wc_supabase_url');
+  const key = localStorage.getItem('wc_supabase_anon_key');
+  if (!url || !key) return false;
+  try {
+    const client = window.supabase.createClient(url, key);
+    const { data } = await client.from('app_config')
+      .select('value').eq('key', 'admin_password_hash').single();
+    const hash = typeof data?.value === 'string' ? data.value : '';
+    return hash.replace(/^"|"$/g, '') !== 'CHANGE_ME' && hash !== '';
+  } catch {
+    return false;
+  }
+}
+
+function prefillExisting() {
+  const existingUrl = localStorage.getItem('wc_supabase_url');
+  const existingKey = localStorage.getItem('wc_supabase_anon_key');
+  if (existingUrl) document.getElementById('sb-url').value = existingUrl;
+  if (existingKey) document.getElementById('sb-key').value = existingKey;
+}
+
+// ---------------------------------------------------------------------------
+// Init
+// ---------------------------------------------------------------------------
+(async () => {
+  const configured = await isAlreadyConfigured();
+  if (configured) {
+    document.getElementById('wizard-wrap').style.display = 'none';
+    document.getElementById('auth-guard').style.display = 'block';
+  } else {
+    prefillExisting();
+  }
+})();
+</script>
+</body>
+</html>

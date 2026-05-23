@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>予想入力 — WC2026 予想レース</title>
+<link rel="stylesheet" href="css/common.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  /* Group stage table */
+  .group-card { margin-bottom: 8px; }
+  .group-card .group-label {
+    font-weight: 800; font-size: 13px; color: white;
+    background: var(--blue); padding: 5px 12px; border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+    display: inline-block;
+  }
+  .group-row { display: flex; gap: 8px; align-items: center; padding: 8px 12px; background: white; border-radius: 0 var(--radius-sm) var(--radius-sm) var(--radius-sm); border: 1.5px solid var(--border); }
+  .group-rank { font-size: 11px; color: var(--muted); width: 18px; flex-shrink: 0; text-align: center; }
+
+  /* Score input pair */
+  .score-pair { display: flex; align-items: center; gap: 8px; }
+  .score-pair input { width: 52px; text-align: center; font-size: 18px; font-weight: 800; }
+  .score-sep { font-size: 18px; font-weight: 800; color: var(--muted); }
+  .match-label { font-size: 13px; font-weight: 600; }
+  .match-flag  { font-size: 18px; }
+
+  /* Bracket visual */
+  .bracket-row { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+  .bracket-pick-count {
+    font-size: 12px; font-weight: 700; padding: 3px 10px;
+    border-radius: 20px; background: #f0f0f0; color: var(--muted);
+  }
+  .bracket-pick-count.ok { background: #e8f4ed; color: var(--green); }
+
+  /* Secret card */
+  .secret-textarea {
+    width: 100%; min-height: 100px; font-size: 15px; padding: 12px;
+    border: 2px solid var(--border); border-radius: var(--radius-sm);
+    resize: vertical; font-family: inherit;
+    transition: border-color 0.15s;
+  }
+  .secret-textarea:focus { border-color: var(--purple); outline: none; }
+
+  /* Submit footer */
+  .submit-footer {
+    position: sticky; bottom: 0; background: white;
+    border-top: 1px solid var(--border); padding: 12px 16px;
+    display: flex; gap: 10px; align-items: center;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.08);
+    z-index: 100;
+  }
+  .save-indicator { font-size: 12px; color: var(--muted); flex: 1; }
+  .save-indicator.saving  { color: var(--orange); }
+  .save-indicator.saved   { color: var(--green); }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header-bar" id="page-header">
+    <div class="icon">⚽</div>
+    <div>
+      <h1 id="header-name">予想入力</h1>
+      <p id="header-status">読み込み中...</p>
+    </div>
+    <div class="header-actions">
+      <a href="index.html" class="btn btn-ghost btn-sm">順位表</a>
+    </div>
+  </div>
+
+  <!-- Locked notice -->
+  <div id="locked-notice" class="note red mb-12" style="display:none;">
+    🔒 予想の締め切りが終了しました。内容は変更できません。
+  </div>
+
+  <!-- Step navigation -->
+  <div class="step-nav" id="step-nav">
+    <button class="step-btn active" data-step="0">A<br><span style="font-weight:400;font-size:10px">グループ</span></button>
+    <button class="step-btn" data-step="1">B<br><span style="font-weight:400;font-size:10px">決勝T</span></button>
+    <button class="step-btn" data-step="2">C<br><span style="font-weight:400;font-size:10px">個人賞</span></button>
+    <button class="step-btn" data-step="3">D<br><span style="font-weight:400;font-size:10px">ダークホース</span></button>
+    <button class="step-btn" data-step="4">E<br><span style="font-weight:400;font-size:10px">日本代表</span></button>
+    <button class="step-btn" data-step="5">F<br><span style="font-weight:400;font-size:10px">封印カード</span></button>
+  </div>
+
+  <!-- ===== PART A: Group Stage ===== -->
+  <div class="step-panel" id="panel-0">
+    <div class="card">
+      <div class="card-header">
+        <span class="badge badge-green">PART A</span>
+        <h2>グループステージ予想 <span class="text-muted" style="font-weight:400;font-size:13px">最大108pt</span></h2>
+      </div>
+      <div class="card-body">
+        <div class="note mb-12">12グループの1位・2位を予想。3位通過チームも8チーム選択してください。</div>
+
+        <div style="font-weight:700;font-size:13px;margin-bottom:8px;">■ グループ別1位・2位予想</div>
+        <div id="group-pickers"></div>
+
+        <hr class="divider">
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px;">■ 3位通過チーム予想（8チーム選択）</div>
+        <div class="text-muted mb-8" style="font-size:12px;">12グループの3位チームの中から突破する8チームを選択</div>
+        <div class="bracket-row">
+          <span>選択数:</span>
+          <span class="bracket-pick-count" id="third-count">0 / 8</span>
+        </div>
+        <div id="third-place-grid" class="team-grid"></div>
+      </div>
+    </div>
+    <div class="flex-between mt-12">
+      <span></span>
+      <button class="btn btn-primary" onclick="goPanel(1)">PART B へ →</button>
+    </div>
+  </div>
+
+  <!-- ===== PART B: Knockout ===== -->
+  <div class="step-panel" id="panel-1" style="display:none;">
+    <div class="card">
+      <div class="card-header">
+        <span class="badge badge-blue">PART B</span>
+        <h2>決勝トーナメント進出予想 <span class="text-muted" style="font-weight:400;font-size:13px">最大100pt</span></h2>
+      </div>
+      <div class="card-body">
+        <div class="note mb-12">各ラウンドに進出するチームを予想。同じチームを複数ラウンドで選ぶことができ、進出するたびに加算！</div>
+
+        <!-- QF -->
+        <div class="mb-12">
+          <div class="bracket-row">
+            <span class="badge badge-blue">ベスト8</span>
+            <span class="text-muted" style="font-size:13px;">8チーム選択 × 5pt</span>
+            <span class="bracket-pick-count" id="qf-count">0 / 8</span>
+          </div>
+          <div id="qf-grid" class="team-grid mt-8"></div>
+        </div>
+        <hr class="divider">
+
+        <!-- SF -->
+        <div class="mb-12">
+          <div class="bracket-row">
+            <span class="badge badge-blue">ベスト4</span>
+            <span class="text-muted" style="font-size:13px;">4チーム選択 × 5pt</span>
+            <span class="bracket-pick-count" id="sf-count">0 / 4</span>
+          </div>
+          <div id="sf-grid" class="team-grid mt-8"></div>
+        </div>
+        <hr class="divider">
+
+        <!-- Final -->
+        <div class="mb-12">
+          <div class="bracket-row">
+            <span class="badge badge-red">決勝進出</span>
+            <span class="text-muted" style="font-size:13px;">2チーム選択 × 5pt</span>
+            <span class="bracket-pick-count" id="final-count">0 / 2</span>
+          </div>
+          <div id="final-grid" class="team-grid mt-8"></div>
+        </div>
+        <hr class="divider">
+
+        <!-- Champion -->
+        <div>
+          <div class="bracket-row">
+            <span class="badge" style="background:var(--gold);color:#7a6400;">🏆 優勝</span>
+            <span class="text-muted" style="font-size:13px;">1チーム選択 × 30pt</span>
+            <span class="bracket-pick-count" id="champion-count">0 / 1</span>
+          </div>
+          <div id="champion-grid" class="team-grid mt-8"></div>
+        </div>
+      </div>
+    </div>
+    <div class="flex-between mt-12">
+      <button class="btn btn-ghost" onclick="goPanel(0)">← PART A</button>
+      <button class="btn btn-primary" onclick="goPanel(2)">PART C へ →</button>
+    </div>
+  </div>
+
+  <!-- ===== PART C: Individual Awards ===== -->
+  <div class="step-panel" id="panel-2" style="display:none;">
+    <div class="card">
+      <div class="card-header">
+        <span class="badge badge-orange">PART C</span>
+        <h2>スペシャル個人予想 <span class="text-muted" style="font-weight:400;font-size:13px">最大80pt</span></h2>
+      </div>
+      <div class="card-body">
+        <div class="note mb-12">選手名を入力してください（英語または日本語表記、どちらでも可）</div>
+        <div class="form-group">
+          <label class="form-label">🥾 得点王（ゴールデンブーツ）<span class="text-red"> +20pt</span></label>
+          <input type="text" id="c-top-scorer" class="form-input" placeholder="例: Kylian Mbappé" list="player-list">
+        </div>
+        <div class="form-group">
+          <label class="form-label">🎯 アシスト王<span class="text-red"> +20pt</span></label>
+          <input type="text" id="c-assist-king" class="form-input" placeholder="例: Kevin De Bruyne" list="player-list">
+        </div>
+        <div class="form-group">
+          <label class="form-label">⚽ ゴールデンボール（MVP）<span class="text-red"> +20pt</span></label>
+          <input type="text" id="c-golden-ball" class="form-input" placeholder="例: Lionel Messi" list="player-list">
+        </div>
+        <div class="form-group">
+          <label class="form-label">🧤 ゴールデングローブ（最優秀GK）<span class="text-red"> +20pt</span></label>
+          <input type="text" id="c-golden-glove" class="form-input" placeholder="例: Manuel Neuer" list="player-list">
+        </div>
+        <datalist id="player-list"></datalist>
+      </div>
+    </div>
+    <div class="flex-between mt-12">
+      <button class="btn btn-ghost" onclick="goPanel(1)">← PART B</button>
+      <button class="btn btn-primary" onclick="goPanel(3)">PART D へ →</button>
+    </div>
+  </div>
+
+  <!-- ===== PART D: Dark Horse ===== -->
+  <div class="step-panel" id="panel-3" style="display:none;">
+    <div class="card">
+      <div class="card-header">
+        <span class="badge badge-red">PART D</span>
+        <h2>ダークホース枠 <span class="text-muted" style="font-weight:400;font-size:13px">最大100pt</span></h2>
+      </div>
+      <div class="card-body">
+        <div class="note mb-12">
+          ブックメーカーオッズ下位24チームから<strong>1チームだけ</strong>選択。<br>
+          ラウンドが上がるごとに累積加算（R16=20pt → QF=40pt → SF=60pt → 決勝=80pt → 優勝=100pt）
+        </div>
+        <div class="dh-step-grid" style="margin-bottom:16px;">
+          <div class="dh-step"><div><div class="round">ベスト16</div><div class="cum">累計 20pt</div></div><div class="addpt">+20</div></div>
+          <div class="dh-step"><div><div class="round">ベスト8</div><div class="cum">累計 40pt</div></div><div class="addpt">+20</div></div>
+          <div class="dh-step"><div><div class="round">ベスト4</div><div class="cum">累計 60pt</div></div><div class="addpt">+20</div></div>
+          <div class="dh-step"><div><div class="round">決勝進出</div><div class="cum">累計 80pt</div></div><div class="addpt">+20</div></div>
+          <div class="dh-step champion"><div><div class="round">🏆 優勝!</div><div class="cum">累計 100pt</div></div><div class="addpt" style="font-size:22px;">+20</div></div>
+        </div>
+        <div class="bracket-row mb-8">
+          <span class="font-bold" style="font-size:13px;">選択チーム:</span>
+          <span class="bracket-pick-count" id="dh-sel-label">未選択</span>
+        </div>
+        <div id="dh-pool-grid" class="team-grid"></div>
+        <div class="note orange mt-12" id="dh-note" style="display:none;"></div>
+      </div>
+    </div>
+    <div class="flex-between mt-12">
+      <button class="btn btn-ghost" onclick="goPanel(2)">← PART C</button>
+      <button class="btn btn-primary" onclick="goPanel(4)">PART E へ →</button>
+    </div>
+  </div>
+
+  <!-- ===== PART E: Japan Special ===== -->
+  <div class="step-panel" id="panel-4" style="display:none;">
+    <div class="card">
+      <div class="card-header">
+        <span class="badge badge-japan">PART E</span>
+        <h2>🇯🇵 日本代表スペシャル <span class="text-muted" style="font-weight:400;font-size:13px">最大95pt</span></h2>
+      </div>
+      <div class="card-body">
+        <div class="note mb-12">全員必須の日本代表専用カテゴリ</div>
+
+        <div class="form-group">
+          <label class="form-label">日本の最終到達ラウンド <span class="text-red">+20pt</span></label>
+          <select id="e-final-round" class="form-select">
+            <option value="">— 選択してください —</option>
+            <option value="group">グループステージ敗退</option>
+            <option value="r32">ベスト32（R32）</option>
+            <option value="r16">ベスト16</option>
+            <option value="qf">ベスト8</option>
+            <option value="sf">ベスト4</option>
+            <option value="final">決勝</option>
+            <option value="champion">優勝🏆</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">日本チーム内得点王（選手名）<span class="text-red">+15pt</span></label>
+          <input type="text" id="e-top-scorer" class="form-input" placeholder="例: 三笘薫 / Mitoma Kaoru">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">日本の大会総ゴール数 <span class="text-red">完全一致+15pt / ±1点+7pt</span></label>
+          <input type="number" id="e-total-goals" class="form-input" min="0" max="50" placeholder="例: 8" style="width:120px;">
+        </div>
+
+        <hr class="divider">
+        <div style="font-weight:700;font-size:13px;margin-bottom:8px;">■ グループステージ 各試合スコア予想</div>
+        <div class="text-muted mb-12" style="font-size:12px;">完全一致 +15pt / 勝敗のみ正解 +7pt（1試合ごと）</div>
+        <div id="japan-matches"></div>
+      </div>
+    </div>
+    <div class="flex-between mt-12">
+      <button class="btn btn-ghost" onclick="goPanel(3)">← PART D</button>
+      <button class="btn btn-primary" onclick="goPanel(5)">PART F へ →</button>
+    </div>
+  </div>
+
+  <!-- ===== PART F: Secret Card ===== -->
+  <div class="step-panel" id="panel-5" style="display:none;">
+    <div class="card">
+      <div class="card-header">
+        <span class="badge badge-purple">PART F</span>
+        <h2>封印カード（シークレット予想）<span class="text-muted" style="font-weight:400;font-size:13px">最大100pt</span></h2>
+      </div>
+      <div class="card-body">
+        <div style="background:linear-gradient(135deg,var(--navy) 0%,var(--purple) 100%);color:white;border-radius:var(--radius-sm);padding:16px;margin-bottom:14px;text-align:center;">
+          <div style="font-size:24px;margin-bottom:6px;">🔒</div>
+          <div style="font-weight:700;margin-bottom:4px;">サプライズ予想を1つ記入</div>
+          <div style="font-size:13px;opacity:0.85;">開幕前に全員で公開して、サプライズ具合を議論しながらポイントを決定！</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">予想内容（自由記述）</label>
+          <textarea id="f-text" class="secret-textarea" maxlength="200"
+            placeholder="例: スペインがグループステージで敗退&#10;例: カナダが初のベスト4進出&#10;例: 日本がPK戦でブラジルを倒す"></textarea>
+          <div class="text-right" style="font-size:12px;color:var(--muted);margin-top:4px;"><span id="f-charcount">0</span> / 200</div>
+        </div>
+        <div class="note" style="border-color:var(--purple);">
+          <strong>配点目安</strong>（開幕前に全員で合意）<br>
+          神予想 100pt ／ 超穴予想 70pt ／ 穴予想 40pt ／ やや意外 20pt
+        </div>
+      </div>
+    </div>
+    <div class="flex-between mt-12">
+      <button class="btn btn-ghost" onclick="goPanel(4)">← PART E</button>
+      <span></span>
+    </div>
+  </div>
+
+  <!-- Submit footer -->
+  <div class="submit-footer" id="submit-footer">
+    <span class="save-indicator" id="save-indicator">—</span>
+    <button class="btn btn-ghost btn-sm" id="btn-save" onclick="doSave(false)">一時保存</button>
+    <button class="btn btn-red" id="btn-submit" onclick="doSubmit()">最終提出</button>
+  </div>
+
+</div><!-- /container -->
+
+<script src="js/config.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/db.js"></script>
+<script>
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+let participant = null;
+let prediction  = null;
+let isLocked    = false;
+let isDirty     = false;
+let darkHorsePool = [];
+
+// Form data collected on save
+function collectFormData() {
+  // Part A
+  const groups = {};
+  Object.keys(WC2026_GROUPS).forEach(g => {
+    const selects = document.querySelectorAll(`[data-group="${g}"] select`);
+    if (selects.length >= 2) {
+      groups[g] = { first: selects[0].value, second: selects[1].value };
+    }
+  });
+  const third_place_qualifiers = getSelectedTeams('third-place-grid');
+  const part_a = { groups, third_place_qualifiers };
+
+  // Part B
+  const part_b = {
+    qf:       getSelectedTeams('qf-grid'),
+    sf:       getSelectedTeams('sf-grid'),
+    final:    getSelectedTeams('final-grid'),
+    champion: getSelectedTeams('champion-grid')[0] || null,
+  };
+
+  // Part C
+  const part_c = {
+    top_scorer:   document.getElementById('c-top-scorer').value.trim(),
+    assist_king:  document.getElementById('c-assist-king').value.trim(),
+    golden_ball:  document.getElementById('c-golden-ball').value.trim(),
+    golden_glove: document.getElementById('c-golden-glove').value.trim(),
+  };
+
+  // Part D
+  const dhSel = getSelectedTeams('dh-pool-grid');
+  const part_d = { team: dhSel[0] || null };
+
+  // Part E
+  const matchScores = [];
+  JAPAN_GROUP_MATCHES.forEach((m, i) => {
+    const j = document.getElementById(`e-japan-${i}`);
+    const o = document.getElementById(`e-opp-${i}`);
+    matchScores.push({
+      opponent:      m.opponent,
+      japan_goals:   j ? parseInt(j.value) || 0 : 0,
+      opponent_goals: o ? parseInt(o.value) || 0 : 0,
+    });
+  });
+  const part_e = {
+    final_round:       document.getElementById('e-final-round').value,
+    top_scorer:        document.getElementById('e-top-scorer').value.trim(),
+    total_goals_exact: parseInt(document.getElementById('e-total-goals').value) || null,
+    match_scores:      matchScores,
+  };
+
+  // Part F
+  const part_f = { text: document.getElementById('f-text').value.trim() };
+
+  return { part_a, part_b, part_c, part_d, part_e, part_f };
+}
+
+function populateForm(pred) {
+  if (!pred) return;
+
+  // Part A
+  if (pred.part_a?.groups) {
+    Object.keys(WC2026_GROUPS).forEach(g => {
+      const gdata = pred.part_a.groups[g];
+      if (!gdata) return;
+      const selects = document.querySelectorAll(`[data-group="${g}"] select`);
+      if (selects[0]) selects[0].value = gdata.first || '';
+      if (selects[1]) selects[1].value = gdata.second || '';
+    });
+  }
+  if (pred.part_a?.third_place_qualifiers) {
+    const grid = document.getElementById('third-place-grid');
+    pred.part_a.third_place_qualifiers.forEach(team => {
+      const chip = grid?.querySelector(`[data-team="${team}"]`);
+      if (chip) chip.classList.add('selected');
+    });
+    updateThirdCount();
+  }
+
+  // Part B
+  ['qf','sf','final','champion'].forEach(round => {
+    const arr = round === 'champion'
+      ? (pred.part_b?.champion ? [pred.part_b.champion] : [])
+      : (pred.part_b?.[round] || []);
+    const grid = document.getElementById(`${round}-grid`);
+    if (grid) {
+      arr.forEach(team => {
+        const chip = grid.querySelector(`[data-team="${team}"]`);
+        if (chip) chip.classList.add('selected');
+      });
+    }
+  });
+  updateBracketCounts();
+
+  // Part C
+  if (pred.part_c) {
+    document.getElementById('c-top-scorer').value  = pred.part_c.top_scorer  || '';
+    document.getElementById('c-assist-king').value = pred.part_c.assist_king || '';
+    document.getElementById('c-golden-ball').value = pred.part_c.golden_ball || '';
+    document.getElementById('c-golden-glove').value= pred.part_c.golden_glove|| '';
+  }
+
+  // Part D
+  if (pred.part_d?.team) {
+    const grid = document.getElementById('dh-pool-grid');
+    const chip = grid?.querySelector(`[data-team="${pred.part_d.team}"]`);
+    if (chip) {
+      chip.classList.add('selected');
+      updateDHLabel(pred.part_d.team);
+    }
+  }
+
+  // Part E
+  if (pred.part_e) {
+    document.getElementById('e-final-round').value = pred.part_e.final_round || '';
+    document.getElementById('e-top-scorer').value  = pred.part_e.top_scorer  || '';
+    if (pred.part_e.total_goals_exact != null)
+      document.getElementById('e-total-goals').value = pred.part_e.total_goals_exact;
+    (pred.part_e.match_scores || []).forEach((ms, i) => {
+      const j = document.getElementById(`e-japan-${i}`);
+      const o = document.getElementById(`e-opp-${i}`);
+      if (j) j.value = ms.japan_goals ?? '';
+      if (o) o.value = ms.opponent_goals ?? '';
+    });
+  }
+
+  // Part F
+  if (pred.part_f?.text) {
+    document.getElementById('f-text').value = pred.part_f.text;
+    document.getElementById('f-charcount').textContent = pred.part_f.text.length;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Rendering
+// ---------------------------------------------------------------------------
+function renderGroupPickers() {
+  const container = document.getElementById('group-pickers');
+  Object.entries(WC2026_GROUPS).forEach(([g, teams]) => {
+    const div = document.createElement('div');
+    div.className = 'group-card';
+    div.dataset.group = g;
+    div.innerHTML = `<div class="group-label">グループ ${g}</div>
+      <div class="group-row">
+        <span class="group-rank">1位</span>
+        <select class="form-select" style="flex:1" ${isLocked?'disabled':''}>${teamOptions(teams)}</select>
+        <span class="group-rank">2位</span>
+        <select class="form-select" style="flex:1" ${isLocked?'disabled':''}>${teamOptions(teams)}</select>
+      </div>`;
+    div.querySelectorAll('select').forEach(s => s.addEventListener('change', markDirty));
+    container.appendChild(div);
+  });
+}
+
+function teamOptions(teams) {
+  return `<option value="">— 選択 —</option>` + teams.map(t => `<option value="${t}">${t}</option>`).join('');
+}
+
+function renderThirdPlaceGrid() {
+  const allThirds = Object.values(WC2026_GROUPS).flat();
+  renderTeamGrid({
+    containerId: 'third-place-grid',
+    teams: allThirds,
+    maxSelect: 8,
+    disabled: isLocked,
+    onSelect: (sel) => {
+      updateThirdCount(sel.length);
+      markDirty();
+    }
+  });
+}
+
+function updateThirdCount(n) {
+  if (n === undefined) {
+    n = getSelectedTeams('third-place-grid').length;
+  }
+  const el = document.getElementById('third-count');
+  if (el) {
+    el.textContent = `${n} / 8`;
+    el.className = 'bracket-pick-count' + (n === 8 ? ' ok' : '');
+  }
+}
+
+function renderBracketGrids() {
+  [
+    { id: 'qf-grid',       max: 8,  label: 'qf-count',       countLabel: '/ 8' },
+    { id: 'sf-grid',       max: 4,  label: 'sf-count',       countLabel: '/ 4' },
+    { id: 'final-grid',    max: 2,  label: 'final-count',    countLabel: '/ 2' },
+    { id: 'champion-grid', max: 1,  label: 'champion-count', countLabel: '/ 1' },
+  ].forEach(({ id, max, label, countLabel }) => {
+    renderTeamGrid({
+      containerId: id,
+      teams: ALL_TEAMS,
+      maxSelect: max,
+      disabled: isLocked,
+      onSelect: () => { updateBracketCounts(); markDirty(); }
+    });
+  });
+}
+
+function updateBracketCounts() {
+  [
+    { gridId: 'qf-grid',       countId: 'qf-count',       max: 8 },
+    { gridId: 'sf-grid',       countId: 'sf-count',       max: 4 },
+    { gridId: 'final-grid',    countId: 'final-count',    max: 2 },
+    { gridId: 'champion-grid', countId: 'champion-count', max: 1 },
+  ].forEach(({ gridId, countId, max }) => {
+    const n = getSelectedTeams(gridId).length;
+    const el = document.getElementById(countId);
+    if (el) {
+      el.textContent = `${n} / ${max}`;
+      el.className = 'bracket-pick-count' + (n === max ? ' ok' : '');
+    }
+  });
+}
+
+function renderDarkHorseGrid() {
+  renderTeamGrid({
+    containerId: 'dh-pool-grid',
+    teams: darkHorsePool.length > 0 ? darkHorsePool : ALL_TEAMS,
+    maxSelect: 1,
+    disabled: isLocked,
+    onSelect: (sel) => {
+      updateDHLabel(sel[0] || null);
+      markDirty();
+    }
+  });
+
+  if (darkHorsePool.length === 0) {
+    document.getElementById('dh-note').style.display = 'block';
+    document.getElementById('dh-note').textContent =
+      'ダークホースプールが未設定のため全チームを表示中。管理者に設定をお願いしてください。';
+  }
+}
+
+function updateDHLabel(team) {
+  const el = document.getElementById('dh-sel-label');
+  if (!el) return;
+  if (team) {
+    el.textContent = team;
+    el.className = 'bracket-pick-count ok';
+  } else {
+    el.textContent = '未選択';
+    el.className = 'bracket-pick-count';
+  }
+}
+
+function renderJapanMatches() {
+  const container = document.getElementById('japan-matches');
+  JAPAN_GROUP_MATCHES.forEach((m, i) => {
+    const div = document.createElement('div');
+    div.className = 'card mt-8';
+    div.style.padding = '12px 14px';
+    div.innerHTML = `
+      <div class="match-label mb-8">第${i+1}戦 vs <strong>${m.opponent}</strong></div>
+      <div class="score-pair">
+        <span style="font-size:13px;font-weight:600;">🇯🇵</span>
+        <input type="number" id="e-japan-${i}" class="form-input score-pair" min="0" max="20"
+               placeholder="0" style="width:60px;text-align:center;font-size:20px;font-weight:800;"
+               ${isLocked?'disabled':''}>
+        <span class="score-sep">−</span>
+        <input type="number" id="e-opp-${i}" class="form-input" min="0" max="20"
+               placeholder="0" style="width:60px;text-align:center;font-size:20px;font-weight:800;"
+               ${isLocked?'disabled':''}>
+        <span style="font-size:13px;font-weight:600;">${m.opponent}</span>
+      </div>
+      <div class="text-muted mt-8" style="font-size:12px;">完全一致 +15pt ／ 勝敗のみ +7pt</div>`;
+    div.querySelectorAll('input').forEach(el => el.addEventListener('input', markDirty));
+    container.appendChild(div);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Navigation
+// ---------------------------------------------------------------------------
+function goPanel(n) {
+  document.querySelectorAll('.step-panel').forEach(p => p.style.display = 'none');
+  document.getElementById(`panel-${n}`).style.display = 'block';
+  document.querySelectorAll('.step-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.dataset.step) === n);
+  });
+  window.scrollTo(0, 0);
+}
+
+document.getElementById('step-nav').addEventListener('click', e => {
+  const btn = e.target.closest('.step-btn');
+  if (!btn) return;
+  goPanel(parseInt(btn.dataset.step));
+});
+
+// ---------------------------------------------------------------------------
+// Dirty / Auto-save
+// ---------------------------------------------------------------------------
+function markDirty() {
+  isDirty = true;
+  const el = document.getElementById('save-indicator');
+  if (el) { el.textContent = '未保存の変更があります'; el.className = 'save-indicator'; }
+  debouncedSave();
+}
+
+const debouncedSave = debounce(() => doSave(true), 2500);
+
+async function doSave(auto = false) {
+  if (!participant || isLocked) return;
+  const data = collectFormData();
+  const el = document.getElementById('save-indicator');
+  if (el) { el.textContent = '保存中...'; el.className = 'save-indicator saving'; }
+  try {
+    await upsertPrediction(participant.id, data);
+    isDirty = false;
+    if (el) { el.textContent = `保存済み ${fmtDate(new Date().toISOString())}`; el.className = 'save-indicator saved'; }
+  } catch (e) {
+    if (el) { el.textContent = '保存失敗: ' + e.message; el.className = 'save-indicator'; }
+    if (!auto) showToast('保存に失敗しました: ' + e.message, 'error');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Submit
+// ---------------------------------------------------------------------------
+async function doSubmit() {
+  const data = collectFormData();
+
+  // Validation
+  const warnings = [];
+  const filledGroups = Object.values(data.part_a.groups || {}).filter(g => g.first && g.second).length;
+  if (filledGroups < 12) warnings.push(`グループ予想が未完成です（${filledGroups}/12グループ）`);
+  if ((data.part_a.third_place_qualifiers || []).length !== 8)
+    warnings.push(`3位通過チームを8チーム選択してください（現在: ${(data.part_a.third_place_qualifiers||[]).length}）`);
+  if (!data.part_d.team) warnings.push('ダークホースチームが未選択です');
+  if (!data.part_e.final_round) warnings.push('日本の最終到達ラウンドが未選択です');
+
+  const warnHtml = warnings.length > 0
+    ? `<div class="note red mb-12">${warnings.join('<br>')}</div><br>`
+    : '';
+
+  showModal({
+    title: '最終提出の確認',
+    body: `${warnHtml}提出後は変更できません。<br>本当に提出しますか？`,
+    confirmLabel: '提出する',
+    confirmClass: 'btn-red',
+    cancelLabel: 'キャンセル',
+    onConfirm: async () => {
+      showSpinner();
+      try {
+        await upsertPrediction(participant.id, data);
+        await submitPrediction(participant.id);
+        hideSpinner();
+        showToast('予想を提出しました！', 'success');
+        document.getElementById('btn-submit').disabled = true;
+        document.getElementById('btn-submit').textContent = '✓ 提出済み';
+        document.getElementById('btn-save').disabled = true;
+        document.getElementById('save-indicator').textContent = '提出済み';
+        isLocked = true;
+        setFormDisabled(true);
+      } catch (e) {
+        hideSpinner();
+        showToast('提出失敗: ' + e.message, 'error');
+      }
+    }
+  });
+}
+
+function setFormDisabled(disabled) {
+  document.querySelectorAll('input, select, textarea, .team-chip').forEach(el => {
+    el.disabled = disabled;
+    if (el.classList.contains('team-chip')) {
+      el.classList.toggle('disabled', disabled);
+      el.style.pointerEvents = disabled ? 'none' : '';
+    }
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Init
+// ---------------------------------------------------------------------------
+async function init() {
+  if (requireSetup()) return;
+
+  const token = getTokenFromURL();
+  if (!token) {
+    document.getElementById('page-header').style.background = '#555';
+    document.getElementById('header-name').textContent = 'アクセスエラー';
+    document.getElementById('header-status').textContent = 'URLにトークンが含まれていません';
+    document.getElementById('submit-footer').style.display = 'none';
+    return;
+  }
+
+  try {
+    // Load data in parallel
+    const [p, locked, dhPool] = await Promise.all([
+      validateToken(token),
+      isPredictionsLocked(),
+      getConfig('dark_horse_pool'),
+    ]);
+
+    if (!p) {
+      document.getElementById('header-name').textContent = '無効なリンク';
+      document.getElementById('header-status').textContent = 'このリンクは有効ではありません';
+      document.getElementById('submit-footer').style.display = 'none';
+      return;
+    }
+
+    participant = p;
+    isLocked = locked;
+    darkHorsePool = Array.isArray(dhPool) ? dhPool : [];
+
+    document.getElementById('header-name').textContent = `${p.name} さんの予想`;
+    document.getElementById('header-status').textContent =
+      isLocked ? '🔒 予想締め切り済み — 読み取り専用' : '開幕前に提出してください';
+
+    if (isLocked) {
+      document.getElementById('locked-notice').style.display = 'block';
+      document.getElementById('btn-submit').style.display = 'none';
+      document.getElementById('btn-save').style.display = 'none';
+    }
+
+    // Render all pickers
+    renderGroupPickers();
+    renderThirdPlaceGrid();
+    renderBracketGrids();
+    renderDarkHorseGrid();
+    renderJapanMatches();
+
+    // Load existing prediction
+    const pred = await getPrediction(p.id);
+    if (pred) {
+      prediction = pred;
+      populateForm(pred);
+      if (pred.submitted) {
+        document.getElementById('btn-submit').textContent = '✓ 提出済み';
+        document.getElementById('btn-submit').disabled = true;
+        document.getElementById('save-indicator').textContent = `提出済み ${fmtDate(pred.submitted_at)}`;
+        document.getElementById('save-indicator').className = 'save-indicator saved';
+      }
+    }
+
+    if (isLocked) setFormDisabled(true);
+
+    // Part F char counter
+    document.getElementById('f-text').addEventListener('input', function() {
+      document.getElementById('f-charcount').textContent = this.value.length;
+      markDirty();
+    });
+
+    // Add change listeners to Part C
+    ['c-top-scorer','c-assist-king','c-golden-ball','c-golden-glove','e-final-round','e-top-scorer','e-total-goals'].forEach(id => {
+      document.getElementById(id)?.addEventListener('input', markDirty);
+      document.getElementById(id)?.addEventListener('change', markDirty);
+    });
+
+    // Warn on navigation if dirty
+    window.addEventListener('beforeunload', e => {
+      if (isDirty) { e.preventDefault(); e.returnValue = ''; }
+    });
+
+  } catch (e) {
+    showToast('読み込みエラー: ' + e.message, 'error');
+  }
+}
+
+init();
+</script>
+</body>
+</html>

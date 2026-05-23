@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>World Cup 2026 予想レース レギュレーション</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Helvetica Neue', Arial, sans-serif;
+    background: #f0f2f5;
+    color: #111;
+    font-size: 15px;
+    line-height: 1.6;
+    padding: 24px 16px 48px;
+  }
+  .container { max-width: 760px; margin: 0 auto; }
+
+  /* HEADER */
+  .header {
+    background: #1a1a2e;
+    color: white;
+    border-radius: 14px;
+    padding: 24px 28px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 18px;
+  }
+  .header-emoji { font-size: 44px; }
+  .header-text h1 { font-size: 22px; font-weight: 800; letter-spacing: 0.5px; }
+  .header-text p { font-size: 13px; opacity: 0.72; margin-top: 5px; }
+
+  /* PHASE BANNER */
+  .phase-section { margin-bottom: 10px; }
+  .phase-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+  .phase-label.phase1 { background: #d1e8ff; color: #1d3557; }
+  .phase-label.phase2 { background: #ffe8cc; color: #a0522d; }
+  .phase-label .phase-icon { font-size: 18px; }
+  .phase-label .phase-desc { font-weight: 400; font-size: 12px; opacity: 0.8; margin-left: 4px; }
+
+  /* SUMMARY BAR */
+  .summary-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .stat-card {
+    background: white;
+    border-radius: 10px;
+    padding: 14px 12px;
+    text-align: center;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  }
+  .stat-card .num { font-size: 24px; font-weight: 900; color: #e63946; }
+  .stat-card .label { font-size: 11px; color: #777; margin-top: 3px; }
+
+  /* PART CARD */
+  .part {
+    background: white;
+    border-radius: 12px;
+    margin-bottom: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.07);
+  }
+  .part-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 18px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .part-header:hover { background: #fafafa; }
+  .part-badge {
+    color: white;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 3px 9px;
+    border-radius: 5px;
+    white-space: nowrap;
+  }
+  .bg-green  { background: #2d6a4f; }
+  .bg-blue   { background: #1d3557; }
+  .bg-orange { background: #e76f51; }
+  .bg-red    { background: #e63946; }
+  .bg-japan  { background: #c1121f; }
+  .bg-purple { background: #6d3b8c; }
+  .bg-gray   { background: #555; }
+
+  .part-title { font-weight: 700; font-size: 15px; flex: 1; }
+  .part-maxpt { font-size: 14px; font-weight: 800; color: #e63946; white-space: nowrap; }
+  .chevron { font-size: 12px; color: #aaa; transition: transform 0.2s; }
+  .chevron.open { transform: rotate(90deg); }
+
+  .part-body {
+    display: none;
+    padding: 0 18px 16px;
+    border-top: 1px solid #f0f0f0;
+  }
+  .part-body.open { display: block; }
+
+  /* NOTE */
+  .note {
+    background: #f5f5f5;
+    border-left: 3px solid #1a1a2e;
+    padding: 9px 13px;
+    margin-top: 12px;
+    font-size: 13px;
+    color: #555;
+    border-radius: 0 5px 5px 0;
+  }
+  .note.red { border-color: #e63946; background: #fff5f5; color: #c0392b; font-weight: 600; }
+
+  /* TABLE */
+  .scoring-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 14px;
+    font-size: 13px;
+  }
+  .scoring-table th {
+    background: #f5f5f5;
+    padding: 8px 11px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 12px;
+    color: #555;
+  }
+  .scoring-table td {
+    padding: 8px 11px;
+    border-bottom: 1px solid #f0f0f0;
+    vertical-align: middle;
+  }
+  .scoring-table tr:last-child td { border-bottom: none; }
+  .pts { font-weight: 800; color: #e63946; text-align: right; white-space: nowrap; }
+  .pts-sub { font-weight: 600; color: #e76f51; text-align: right; white-space: nowrap; }
+
+  /* DARKHOR GRID */
+  .darkhor-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 14px;
+  }
+  .darkhor-step {
+    border: 1px solid #eee;
+    border-radius: 9px;
+    padding: 11px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .darkhor-step .round { font-size: 13px; font-weight: 600; }
+  .darkhor-step .cum { font-size: 12px; color: #999; }
+  .darkhor-step .addpt { font-weight: 900; color: #e63946; font-size: 16px; }
+
+  /* TIMELINE */
+  .timeline { margin-top: 14px; position: relative; padding-left: 22px; }
+  .timeline::before { content: ''; position: absolute; left: 8px; top: 5px; bottom: 5px; width: 2px; background: #e0e0e0; }
+  .tl-item { position: relative; margin-bottom: 14px; font-size: 13px; }
+  .tl-item::before { content: ''; position: absolute; left: -17px; top: 5px; width: 9px; height: 9px; border-radius: 50%; background: #1a1a2e; }
+  .tl-item .tl-label { font-weight: 700; font-size: 12px; color: #e63946; }
+  .tl-item .tl-desc { color: #555; }
+
+  /* TIEBREAK */
+  .tiebreak-list { margin-top: 10px; display: flex; flex-direction: column; gap: 5px; }
+  .tiebreak-step {
+    background: #f5f5f5;
+    border-radius: 7px;
+    padding: 8px 12px;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .tiebreak-step .num2 {
+    background: #1a1a2e;
+    color: white;
+    border-radius: 50%;
+    width: 20px; height: 20px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  /* SECRET BOX */
+  .secret-box {
+    background: linear-gradient(135deg, #1a1a2e 0%, #6d3b8c 100%);
+    color: white;
+    border-radius: 11px;
+    padding: 18px;
+    margin-top: 14px;
+    text-align: center;
+  }
+  .secret-box h3 { font-size: 16px; margin-bottom: 7px; }
+  .secret-box p { font-size: 13px; opacity: 0.85; }
+  .secret-box .pts-big { font-size: 32px; font-weight: 900; color: #ffd700; margin: 8px 0; }
+
+  /* FOOTER */
+  .footer {
+    text-align: center;
+    color: #aaa;
+    font-size: 12px;
+    margin-top: 32px;
+  }
+
+  @media (max-width: 500px) {
+    .summary-bar { grid-template-columns: repeat(2, 1fr); }
+    .darkhor-grid { grid-template-columns: 1fr; }
+    .header { flex-direction: column; text-align: center; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-emoji">🏆</div>
+    <div class="header-text">
+      <h1>World Cup 2026 予想レース</h1>
+      <p>5名参加 ／ 2フェーズ提出制 ／ 最終戦まで逆転チャンスあり</p>
+    </div>
+  </div>
+
+  <!-- SUMMARY BAR -->
+  <div class="summary-bar">
+    <div class="stat-card"><div class="num">6</div><div class="label">予想カテゴリ</div></div>
+    <div class="stat-card"><div class="num">~570</div><div class="label">最大獲得pt</div></div>
+    <div class="stat-card"><div class="num">100</div><div class="label">ダークホース最大pt</div></div>
+    <div class="stat-card"><div class="num">100</div><div class="label">封印カード最大pt</div></div>
+  </div>
+
+  <!-- ========== PHASE 1 ========== -->
+  <div class="phase-section">
+    <div class="phase-label phase1">
+      <span class="phase-icon">📋</span>
+      <span>開幕24時間前までに全予想を提出</span>
+      <span class="phase-desc">— 全カテゴリ一括提出・提出後変更不可</span>
+    </div>
+
+    <!-- PART A -->
+    <div class="part">
+      <div class="part-header" onclick="toggle(this)">
+        <span class="part-badge bg-green">PART A</span>
+        <span class="part-title">グループステージ予想</span>
+        <span class="part-maxpt">最大 108pt</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="part-body">
+        <div class="note">全12グループの1位・2位チームを予想。3位通過チーム（8枠）も選択。</div>
+        <table class="scoring-table">
+          <thead><tr><th>条件</th><th style="text-align:right">ポイント</th></tr></thead>
+          <tbody>
+            <tr><td>各グループ 1位を完全正解</td><td class="pts">4pt × 12G</td></tr>
+            <tr><td>各グループ 2位を完全正解</td><td class="pts">3pt × 12G</td></tr>
+            <tr><td>1位・2位は当たり、順序が逆</td><td class="pts-sub">各1pt（計2pt）</td></tr>
+            <tr><td>3位通過チーム（8枠）1チーム正解</td><td class="pts">3pt × 8</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PART B -->
+    <div class="part">
+      <div class="part-header" onclick="toggle(this)">
+        <span class="part-badge bg-blue">PART B</span>
+        <span class="part-title">決勝トーナメント 進出チーム予想</span>
+        <span class="part-maxpt">最大 100pt</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="part-body">
+        <div class="note">各ステージに進出するチームを開幕前に予想。同じチームを複数ステージで選べて、実際に進出するたびに累積加算！</div>
+        <table class="scoring-table">
+          <thead><tr><th>ステージ</th><th>予想チーム数</th><th style="text-align:right">1チーム正解</th><th style="text-align:right">ステージ最大</th></tr></thead>
+          <tbody>
+            <tr><td>ベスト8 進出</td><td>8チーム選択</td><td class="pts">5pt</td><td class="pts-sub">40pt</td></tr>
+            <tr><td>ベスト4 進出</td><td>4チーム選択</td><td class="pts">5pt</td><td class="pts-sub">20pt</td></tr>
+            <tr><td>決勝 進出（ベスト2）</td><td>2チーム選択</td><td class="pts">5pt</td><td class="pts-sub">10pt</td></tr>
+            <tr><td>🏆 優勝</td><td>1チーム選択</td><td class="pts">30pt</td><td class="pts-sub">30pt</td></tr>
+          </tbody>
+        </table>
+        <div class="note red">⚡ 例：アルゼンチンを全ステージで選んで優勝したら 5+5+5+30=<b>45pt</b> 累積！</div>
+      </div>
+    </div>
+
+    <!-- PART C -->
+    <div class="part">
+      <div class="part-header" onclick="toggle(this)">
+        <span class="part-badge bg-orange">PART C</span>
+        <span class="part-title">スペシャル個人予想</span>
+        <span class="part-maxpt">最大 80pt</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="part-body">
+        <table class="scoring-table">
+          <thead><tr><th>項目</th><th style="text-align:right">正解</th></tr></thead>
+          <tbody>
+            <tr><td>🥾 得点王（選手名を指名）</td><td class="pts">20pt</td></tr>
+            <tr><td>🎯 アシスト王（選手名を指名）</td><td class="pts">20pt</td></tr>
+            <tr><td>⚽ ゴールデンボール（MVP）</td><td class="pts">20pt</td></tr>
+            <tr><td>🧤 最優秀GK（ゴールデングローブ）</td><td class="pts">20pt</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PART D -->
+    <div class="part">
+      <div class="part-header" onclick="toggle(this)">
+        <span class="part-badge bg-red">PART D</span>
+        <span class="part-title">ダークホース枠（大逆転カード）</span>
+        <span class="part-maxpt">最大 100pt</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="part-body">
+        <div class="note">大会直前の<strong>ブックメーカーオッズ下位24チーム</strong>から1つだけ選択。ステージが上がるごとに20ptずつ累積加算。優勝で最高100pt！</div>
+        <div class="darkhor-grid">
+          <div class="darkhor-step">
+            <div><div class="round">ベスト16 進出</div><div class="cum">累計 20pt</div></div>
+            <div class="addpt">+20</div>
+          </div>
+          <div class="darkhor-step">
+            <div><div class="round">ベスト8 進出</div><div class="cum">累計 40pt</div></div>
+            <div class="addpt">+20</div>
+          </div>
+          <div class="darkhor-step">
+            <div><div class="round">ベスト4 進出</div><div class="cum">累計 60pt</div></div>
+            <div class="addpt">+20</div>
+          </div>
+          <div class="darkhor-step">
+            <div><div class="round">決勝 進出</div><div class="cum">累計 80pt</div></div>
+            <div class="addpt">+20</div>
+          </div>
+          <div class="darkhor-step" style="grid-column: 1/-1; border-color: #e63946;">
+            <div><div class="round">🏆 優勝！</div><div class="cum">累計 100pt</div></div>
+            <div class="addpt" style="font-size: 22px;">+20</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PART E -->
+    <div class="part">
+      <div class="part-header" onclick="toggle(this)">
+        <span class="part-badge bg-japan">PART E</span>
+        <span class="part-title">🇯🇵 日本代表スペシャル</span>
+        <span class="part-maxpt">最大 95pt</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="part-body">
+        <div class="note">全員必須項目。全参加者が同じ土俵で競う日本専用カテゴリ。</div>
+        <table class="scoring-table">
+          <thead><tr><th>項目</th><th style="text-align:right">ポイント</th></tr></thead>
+          <tbody>
+            <tr><td>日本の最終到達ラウンド（完全正解）</td><td class="pts">20pt</td></tr>
+            <tr><td>日本チーム内得点王（選手名）</td><td class="pts">15pt</td></tr>
+            <tr><td>日本の大会総ゴール数（完全一致）</td><td class="pts">15pt</td></tr>
+            <tr><td>日本の大会総ゴール数（±1点）</td><td class="pts-sub">7pt</td></tr>
+          </tbody>
+        </table>
+        <div class="note" style="margin-top:14px; border-color:#c1121f;">🎯 グループステージ 各試合スコア予想（3試合）</div>
+        <table class="scoring-table">
+          <thead><tr><th>条件</th><th style="text-align:right">1試合当たり</th><th style="text-align:right">3試合最大</th></tr></thead>
+          <tbody>
+            <tr><td>スコア完全一致（例: 2-1）</td><td class="pts">15pt</td><td class="pts-sub">45pt</td></tr>
+            <tr><td>勝敗・引き分けのみ正解</td><td class="pts-sub">7pt</td><td class="pts-sub">21pt</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- PART F -->
+    <div class="part">
+      <div class="part-header" onclick="toggle(this)">
+        <span class="part-badge bg-purple">PART F</span>
+        <span class="part-title">封印カード（シークレット予想）</span>
+        <span class="part-maxpt">最大 100pt</span>
+        <span class="chevron">▶</span>
+      </div>
+      <div class="part-body">
+        <div class="secret-box">
+          <h3>🔒 シークレット予想</h3>
+          <p>開幕前に「サプライズ予想」を1つ自由記述で提出。<br>開幕前に全員でオープンして、サプライズ具合を議論しながら獲得ポイントを全員で決定！</p>
+          <div class="pts-big">〜100pt</div>
+          <p>例:「スペインがグループ敗退」「カナダがベスト4」</p>
+        </div>
+        <div class="note" style="margin-top: 12px;">配点目安：神予想 100pt ／ 超穴予想 70pt ／ 穴予想 40pt ／ やや意外 20pt（全員合意で決定）</div>
+      </div>
+    </div>
+
+  </div><!-- /phase1 -->
+
+  <!-- RULES -->
+  <div class="part">
+    <div class="part-header" onclick="toggle(this)">
+      <span class="part-badge bg-gray">RULE</span>
+      <span class="part-title">同点決定・スケジュール</span>
+      <span class="part-maxpt"></span>
+      <span class="chevron">▶</span>
+    </div>
+    <div class="part-body">
+      <b style="font-size: 14px;">🏅 同点の場合の決定順</b>
+      <div class="tiebreak-list">
+        <div class="tiebreak-step"><div class="num2">1</div>優勝国を的中させた参加者が上位</div>
+        <div class="tiebreak-step"><div class="num2">2</div>グループステージ予想（PART A）の得点が高い方が上位</div>
+        <div class="tiebreak-step"><div class="num2">3</div>決勝トーナメント予想（PART B）の得点が高い方が上位</div>
+      </div>
+
+      <b style="font-size: 14px; display: block; margin-top: 20px;">📅 スケジュール</b>
+      <div class="timeline">
+        <div class="tl-item">
+          <div class="tl-label">開幕24時間前</div>
+          <div class="tl-desc">全予想の締め切り（PART A〜F 全提出）＋封印カードオープン・全員でpt決定</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-label">グループステージ終了後</div>
+          <div class="tl-desc">第1回中間順位発表（PART A確定分）</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-label">ベスト8確定後</div>
+          <div class="tl-desc">第2回中間発表（ダークホース差が顕著に）</div>
+        </div>
+        <div class="tl-item">
+          <div class="tl-label">決勝戦当日</div>
+          <div class="tl-desc">最終ポイント確定・順位発表・商品贈呈 🎉</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">World Cup 2026 予想レース レギュレーション v1.0</div>
+
+</div><!-- /container -->
+
+<script>
+  function toggle(header) {
+    const body = header.nextElementSibling;
+    const chevron = header.querySelector('.chevron');
+    const isOpen = body.classList.contains('open');
+    body.classList.toggle('open', !isOpen);
+    chevron.classList.toggle('open', !isOpen);
+  }
+</script>
+</body>
+</html>

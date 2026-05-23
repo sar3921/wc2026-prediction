@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>順位表 — WC2026 予想レース</title>
+<link rel="stylesheet" href="css/common.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  .lb-header-row {
+    display: grid;
+    grid-template-columns: 44px 1fr 60px 40px 40px 40px 40px 40px 40px;
+    gap: 4px;
+    padding: 8px 10px;
+    background: #f5f5f5;
+    border-bottom: 1px solid var(--border);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
+    text-align: center;
+  }
+  .lb-header-row :nth-child(2) { text-align: left; }
+
+  .lb-row {
+    display: grid;
+    grid-template-columns: 44px 1fr 60px 40px 40px 40px 40px 40px 40px;
+    gap: 4px;
+    padding: 10px 10px;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .lb-row:last-child { border-bottom: none; }
+  .lb-row:hover { background: #fafafa; }
+  .lb-row.gold-row   { background: linear-gradient(90deg, #fffef0, white); }
+  .lb-row.silver-row { background: linear-gradient(90deg, #f8f8f8, white); }
+  .lb-row.bronze-row { background: linear-gradient(90deg, #fdf5ec, white); }
+
+  .lb-cell-total {
+    font-size: 22px; font-weight: 900; color: var(--red); text-align: right; padding-right: 6px;
+  }
+  .lb-cell-part {
+    font-size: 13px; font-weight: 700; color: #444; text-align: center;
+  }
+  .lb-cell-part.zero { color: #ccc; }
+  .lb-cell-part.best { color: var(--green); }
+
+  .lb-detail {
+    display: none;
+    padding: 12px 14px;
+    background: #f8f9fb;
+    border-bottom: 1px solid var(--border);
+  }
+  .lb-detail.open { display: block; }
+  .detail-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+  .detail-card {
+    background: white;
+    border-radius: var(--radius-sm);
+    padding: 10px 8px;
+    text-align: center;
+    border: 1px solid var(--border);
+  }
+  .detail-card .d-badge { font-size: 10px; font-weight: 700; margin-bottom: 4px; }
+  .detail-card .d-pts   { font-size: 18px; font-weight: 900; color: var(--red); }
+  .detail-card .d-max   { font-size: 10px; color: var(--muted); }
+  .detail-card .d-bar   { margin-top: 4px; }
+
+  /* Phase banner */
+  .phase-banner {
+    background: var(--blue);
+    color: white;
+    border-radius: var(--radius-sm);
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 700;
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .phase-banner .phase-sub { font-weight: 400; opacity: 0.8; font-size: 12px; }
+
+  /* Part status row */
+  .part-status-row {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .part-status-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 20px;
+    background: #f0f0f0;
+    color: var(--muted);
+  }
+  .part-status-item.done { background: #e8f4ed; color: var(--green); }
+  .part-status-item.partial { background: #fff8e8; color: #b8820a; }
+
+  .refresh-info { font-size: 12px; color: var(--muted); text-align: right; margin-top: 8px; }
+
+  @media (max-width: 540px) {
+    .lb-header-row, .lb-row {
+      grid-template-columns: 38px 1fr 52px 36px 36px 36px 36px;
+    }
+    /* Hide D and E columns on very small screens */
+    .lb-header-row :nth-child(7),
+    .lb-header-row :nth-child(8),
+    .lb-row :nth-child(7),
+    .lb-row :nth-child(8) { display: none; }
+    .detail-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <!-- Header -->
+  <div class="header-bar">
+    <div class="icon">🏆</div>
+    <div style="flex:1">
+      <h1>WC2026 予想レース 順位表</h1>
+      <p id="header-sub">読み込み中...</p>
+    </div>
+    <div class="header-actions">
+      <a href="wc2026_prediction_league.html" class="btn btn-ghost btn-sm">レギュレーション</a>
+    </div>
+  </div>
+
+  <!-- Summary stats -->
+  <div class="stat-grid" id="stat-grid" style="display:none;">
+    <div class="stat-card"><div class="s-num" id="stat-participants">—</div><div class="s-label">参加者</div></div>
+    <div class="stat-card"><div class="s-num" id="stat-submitted">—</div><div class="s-label">予想提出済み</div></div>
+    <div class="stat-card"><div class="s-num" id="stat-leader">—</div><div class="s-label">現在1位のpt</div></div>
+    <div class="stat-card"><div class="s-num" id="stat-phase">—</div><div class="s-label">現在フェーズ</div></div>
+  </div>
+
+  <!-- Phase banner -->
+  <div class="phase-banner" id="phase-banner" style="display:none;">
+    <span id="phase-icon">📋</span>
+    <span id="phase-label">フェーズ</span>
+    <span class="phase-sub" id="phase-sub"></span>
+  </div>
+
+  <!-- Part status -->
+  <div class="part-status-row" id="part-status-row"></div>
+
+  <!-- Leaderboard -->
+  <div class="card" id="lb-card">
+    <div class="lb-header-row">
+      <div>順位</div>
+      <div>名前</div>
+      <div style="text-align:right;">合計</div>
+      <div>A</div>
+      <div>B</div>
+      <div>C</div>
+      <div>D</div>
+      <div>E</div>
+      <div>F</div>
+    </div>
+    <div id="lb-body">
+      <div class="empty-state"><div class="empty-icon">⏳</div>データを読み込み中...</div>
+    </div>
+  </div>
+
+  <div class="refresh-info" id="refresh-info"></div>
+  <div class="page-footer">WC2026 予想レース v1.0 — <a href="admin.html">管理画面</a></div>
+</div>
+
+<script src="js/config.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/db.js"></script>
+<script src="js/scoring.js"></script>
+<script>
+const PART_MAXES = { A: 108, B: 100, C: 80, D: 100, E: 95, F: 100 };
+let lastRanks = {};
+
+// ---------------------------------------------------------------------------
+// Determine tournament phase
+// ---------------------------------------------------------------------------
+function getTournamentPhase(state) {
+  const ko = state?.knockout_results || {};
+  if (ko.champion) return { phase: 'finished', label: '🏆 大会終了', sub: `優勝: ${ko.champion}`, icon: '🏆' };
+  if ((ko.final || []).length >= 2) return { phase: 'final', label: '決勝戦', sub: '決勝が進行中', icon: '⚔️' };
+  if ((ko.sf   || []).length >= 4) return { phase: 'sf',    label: 'ベスト4確定', sub: '準決勝が進行中', icon: '🔥' };
+  if ((ko.qf   || []).length >= 8) return { phase: 'qf',    label: 'ベスト8確定', sub: '準々決勝が進行中', icon: '💥' };
+  if ((ko.r16  || []).length > 0)  return { phase: 'r16',   label: 'ベスト16進行中', sub: 'ノックアウトステージ', icon: '⚡' };
+  if ((ko.r32  || []).length > 0)  return { phase: 'r32',   label: 'ベスト32進行中', sub: 'ノックアウトステージ開始', icon: '⚡' };
+
+  const grp = state?.group_results || {};
+  const groupsWithData = Object.values(grp).filter(g => g.first).length;
+  if (groupsWithData > 0) return { phase: 'group', label: `グループステージ進行中`, sub: `${groupsWithData}/12グループ確定済み`, icon: '⚽' };
+  return { phase: 'pre', label: '大会前 — 予想受付中', sub: '試合結果はまだありません', icon: '📋' };
+}
+
+// ---------------------------------------------------------------------------
+// Part status chips
+// ---------------------------------------------------------------------------
+function renderPartStatus(state) {
+  const grp = state?.group_results || {};
+  const ko  = state?.knockout_results || {};
+  const aw  = state?.awards || {};
+  const jp  = state?.japan_results || {};
+
+  const parts = [
+    { label: 'A グループ', done: Object.values(grp).some(g => g.first) },
+    { label: 'B 決勝T',    done: (ko.qf || []).length > 0 },
+    { label: 'C 個人賞',   done: !!(aw.top_scorer) },
+    { label: 'D ダークホース', done: (ko.r16 || []).length > 0 },
+    { label: 'E 日本代表', done: !!(jp.final_round && jp.final_round !== 'group' || (jp.match_scores || []).length > 0) },
+    { label: 'F 封印カード', done: false },
+  ];
+
+  const container = document.getElementById('part-status-row');
+  container.innerHTML = parts.map(p => `
+    <div class="part-status-item ${p.done ? 'done' : ''}">
+      ${p.done ? '✓' : '○'} ${p.label}
+    </div>`).join('');
+}
+
+// ---------------------------------------------------------------------------
+// Render leaderboard
+// ---------------------------------------------------------------------------
+function renderLeaderboard(scored) {
+  const body = document.getElementById('lb-body');
+
+  if (scored.length === 0) {
+    body.innerHTML = '<div class="empty-state"><div class="empty-icon">👥</div>参加者がいません</div>';
+    return;
+  }
+
+  // Sort
+  scored.sort((a, b) => {
+    if (b.total !== a.total) return b.total - a.total;
+    if (b.tiebreakers.correct_champion !== a.tiebreakers.correct_champion)
+      return (b.tiebreakers.correct_champion ? 1 : 0) - (a.tiebreakers.correct_champion ? 1 : 0);
+    if (b.tiebreakers.part_a_pts !== a.tiebreakers.part_a_pts)
+      return b.tiebreakers.part_a_pts - a.tiebreakers.part_a_pts;
+    return b.tiebreakers.part_b_pts - a.tiebreakers.part_b_pts;
+  });
+
+  const maxTotal = Math.max(...scored.map(s => s.total), 1);
+
+  body.innerHTML = '';
+  scored.forEach((s, idx) => {
+    const rank = idx + 1;
+    const rankClass = rank === 1 ? 'gold' : rank === 2 ? 'silver' : rank === 3 ? 'bronze' : '';
+    const rowClass  = rank === 1 ? 'gold-row' : rank === 2 ? 'silver-row' : rank === 3 ? 'bronze-row' : '';
+    const rankEmoji = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : rank;
+
+    const parts = [
+      { key: 'A', pts: s.partA?.total || 0, max: PART_MAXES.A },
+      { key: 'B', pts: s.partB?.total || 0, max: PART_MAXES.B },
+      { key: 'C', pts: s.partC?.total || 0, max: PART_MAXES.C },
+      { key: 'D', pts: s.partD?.total || 0, max: PART_MAXES.D },
+      { key: 'E', pts: s.partE?.total || 0, max: PART_MAXES.E },
+      { key: 'F', pts: s.partF?.total || 0, max: PART_MAXES.F },
+    ];
+
+    const partCells = parts.map(p => {
+      const cls = p.pts === 0 ? 'zero' : p.pts >= p.max * 0.7 ? 'best' : '';
+      return `<div class="lb-cell-part ${cls}">${p.pts}</div>`;
+    }).join('');
+
+    // Row
+    const row = document.createElement('div');
+    row.className = `lb-row ${rowClass}`;
+    row.dataset.pid = s.id;
+    row.innerHTML = `
+      <div>
+        <div class="lb-rank ${rankClass}" style="font-size:${rank<=3?'16px':'13px'}">${rankEmoji}</div>
+      </div>
+      <div style="font-weight:700;font-size:14px;">
+        ${s.name}
+        ${s.submitted ? '' : '<span class="status-chip pending" style="font-size:10px;margin-left:4px;">未提出</span>'}
+      </div>
+      <div class="lb-cell-total">${s.total}</div>
+      ${partCells}`;
+
+    // Detail panel
+    const detail = document.createElement('div');
+    detail.className = 'lb-detail';
+    detail.id = `detail-${s.id}`;
+    detail.innerHTML = `
+      <div class="detail-grid">
+        ${parts.map(p => `
+          <div class="detail-card">
+            <div class="d-badge badge badge-${p.key === 'A' ? 'green' : p.key === 'B' ? 'blue' : p.key === 'C' ? 'orange' : p.key === 'D' ? 'red' : p.key === 'E' ? 'japan' : 'purple'}">${p.key}</div>
+            <div class="d-pts">${p.pts}</div>
+            <div class="d-max">/ ${p.max}</div>
+            <div class="d-bar">
+              <div class="score-bar"><div class="score-bar-fill" style="width:${Math.round(p.pts/p.max*100)}%"></div></div>
+            </div>
+          </div>`).join('')}
+      </div>
+      <div class="text-muted mt-8" style="font-size:11px;">
+        同点決定: ${s.tiebreakers.correct_champion ? '優勝的中✓' : '優勝外れ'} ／ A:${s.tiebreakers.part_a_pts}pt ／ B:${s.tiebreakers.part_b_pts}pt
+      </div>`;
+
+    row.addEventListener('click', () => {
+      const wasOpen = detail.classList.contains('open');
+      document.querySelectorAll('.lb-detail').forEach(d => d.classList.remove('open'));
+      if (!wasOpen) detail.classList.add('open');
+    });
+
+    body.appendChild(row);
+    body.appendChild(detail);
+  });
+
+  // Update stats
+  document.getElementById('stat-participants').textContent = scored.length;
+  document.getElementById('stat-submitted').textContent = scored.filter(s => s.submitted).length;
+  document.getElementById('stat-leader').textContent = scored[0]?.total ?? 0;
+  document.getElementById('stat-grid').style.display = 'grid';
+}
+
+// ---------------------------------------------------------------------------
+// Main load
+// ---------------------------------------------------------------------------
+let countdown = 60;
+let refreshTimer;
+
+async function loadData() {
+  if (requireSetup()) return;
+
+  try {
+    const [participants, predictions, state] = await Promise.all([
+      getParticipants(),
+      getAllPredictions(),
+      getTournamentState(),
+    ]);
+
+    // Score each participant
+    const scored = participants.map(p => {
+      const pred = predictions.find(pr => pr.participant_id === p.id);
+      const scores = scoreAll(pred, state);
+      return {
+        ...p,
+        ...scores,
+        submitted: pred?.submitted || false,
+      };
+    });
+
+    renderLeaderboard(scored);
+
+    // Phase
+    const phaseInfo = getTournamentPhase(state);
+    const banner = document.getElementById('phase-banner');
+    banner.style.display = 'flex';
+    document.getElementById('phase-icon').textContent  = phaseInfo.icon;
+    document.getElementById('phase-label').textContent = phaseInfo.label;
+    document.getElementById('phase-sub').textContent   = phaseInfo.sub;
+    document.getElementById('stat-phase').textContent  = phaseInfo.icon;
+    renderPartStatus(state);
+
+    // Header
+    const syncTime = state?.last_synced_at ? fmtDate(state.last_synced_at) : '未同期';
+    document.getElementById('header-sub').textContent = `${participants.length}名参加 ／ 最終同期: ${syncTime}`;
+
+  } catch (e) {
+    document.getElementById('lb-body').innerHTML =
+      `<div class="empty-state"><div class="empty-icon">⚠️</div>エラー: ${e.message}<br>setup.htmlで設定を確認してください。</div>`;
+  }
+
+  // Countdown
+  countdown = 60;
+  clearInterval(refreshTimer);
+  refreshTimer = setInterval(() => {
+    countdown--;
+    document.getElementById('refresh-info').textContent = `自動更新まで ${countdown}秒`;
+    if (countdown <= 0) loadData();
+  }, 1000);
+  document.getElementById('refresh-info').textContent = `自動更新まで ${countdown}秒`;
+}
+
+loadData();
+</script>
+</body>
+</html>
