@@ -3,11 +3,15 @@
 // =============================================================================
 
 // ---------------------------------------------------------------------------
-// Supabase client (credentials stored in localStorage after setup.html)
+// Supabase 接続情報
+// setup.html 完了後にここに直接書き込むと全ブラウザで自動接続される
 // ---------------------------------------------------------------------------
+const SUPABASE_URL      = 'https://wkkslcnzyawalnlholue.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indra3NsY256eWF3YWxubGhvbHVlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk0MzYxMzEsImV4cCI6MjA5NTAxMjEzMX0.4z1W2T8oTUOSx_aT5z0qwUeGr2iJ1w2L_oiCBp-A6Yk';
+
 function getSupabaseClient() {
-  const url = localStorage.getItem('wc_supabase_url');
-  const key = localStorage.getItem('wc_supabase_anon_key');
+  const url = SUPABASE_URL || localStorage.getItem('wc_supabase_url');
+  const key = SUPABASE_ANON_KEY || localStorage.getItem('wc_supabase_anon_key');
   if (!url || !key) return null;
   return window.supabase.createClient(url, key);
 }

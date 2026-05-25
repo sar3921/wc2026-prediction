@@ -61,8 +61,8 @@ function generateToken() {
 }
 
 function requireSetup() {
-  const url = localStorage.getItem('wc_supabase_url');
-  const key = localStorage.getItem('wc_supabase_anon_key');
+  const url = (typeof SUPABASE_URL !== 'undefined' && SUPABASE_URL) || localStorage.getItem('wc_supabase_url');
+  const key = (typeof SUPABASE_ANON_KEY !== 'undefined' && SUPABASE_ANON_KEY) || localStorage.getItem('wc_supabase_anon_key');
   if (!url || !key) {
     window.location.href = 'setup.html';
     return true;
